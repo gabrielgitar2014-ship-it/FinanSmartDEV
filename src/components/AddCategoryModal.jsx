@@ -1,36 +1,56 @@
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { X, Check, Loader2, Tag, DollarSign, ArrowUp, ArrowDown, Users, AlertCircle, ShoppingBag, Home, Car, Activity, Gift } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { X, Check, Loader2, Tag, DollarSign, ArrowUp, ArrowDown, Users, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
-import { useAccounts } from '../hooks/useAccounts' 
-import { SYSTEM_CATEGORIES } from '../constants/categories' // <--- IMPORTA AS SUGESTÕES
+import { SYSTEM_CATEGORIES } from '../constants/categories' // Importe as sugestões
 
 export default function AddCategoryModal({ isOpen, onClose, onSuccess }) {
   const { user } = useAuth()
   
-  // Pegamos a lista de contas para ter o household_id fácil
-  const { accounts } = useAccounts() 
-  const [householdId] = useState(accounts[0]?.household_id || null)
-
+  // --- ESTADO CORRIGIDO: Household ---
+  const [householdId, setHouseholdId] = useState(null)
+  
   const [name, setName] = useState('')
   const [type, setType] = useState('expense') // 'expense' | 'income'
   const [loading, setLoading] = useState(false)
+  const [isFetchingHousehold, setIsFetchingHousehold] = useState(true)
+
+  // 1. Buscar o ID da Household do Usuário no momento da abertura
+  useEffect(() => {
+    if (!user || !isOpen) return
+
+    const fetchHousehold = async () => {
+      setIsFetchingHousehold(true)
+      // Buscamos a primeira household que o usuário pertence
+      const { data } = await supabase
+        .from('household_members')
+        .select('household_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle()
+
+      setHouseholdId(data?.household_id || null)
+      setIsFetchingHousehold(false)
+    }
+
+    fetchHousehold()
+  }, [isOpen, user]) // Roda ao abrir e se o user for carregado
 
   if (!isOpen || !user) return null
 
   const handleSubmit = async () => {
     if (!name.trim()) return toast.error('O nome da categoria é obrigatório.')
+    if (!householdId) return toast.error('Falha: Usuário sem Household ativa.') // RLS Block
 
     setLoading(true)
     try {
-      // 1. Inserir no Supabase (será customizado, logo is_system_default: false)
       const { error } = await supabase.from('categories').insert({
         name: name.trim(),
         type: type,
         is_system_default: false,
-        household_id: householdId 
+        household_id: householdId // <--- AGORA GARANTIDO
       })
 
       if (error) throw error
@@ -41,7 +61,7 @@ export default function AddCategoryModal({ isOpen, onClose, onSuccess }) {
       setType('expense')
 
     } catch (err) {
-      console.error(err)
+      console.error('Erro ao salvar no Supabase:', err)
       toast.error('Erro ao salvar categoria.')
     } finally {
       setLoading(false)
@@ -54,7 +74,7 @@ export default function AddCategoryModal({ isOpen, onClose, onSuccess }) {
     setType(cat.type)
   }
 
-  // Helper para buscar ícone (simula o que a UI faz)
+  // Helper para buscar ícone
   const getDisplayIcon = (slug) => {
     switch (slug) {
       case 'shopping-cart': return <ShoppingBag size={14} />;
@@ -65,6 +85,15 @@ export default function AddCategoryModal({ isOpen, onClose, onSuccess }) {
       case 'dollar-sign': return <DollarSign size={14} />;
       default: return <Tag size={14} />;
     }
+  }
+
+  // Se o modal estiver aberto, mas buscando o ID da Household
+  if (isFetchingHousehold) {
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+             <Loader2 className="animate-spin text-indigo-600 w-8 h-8" />
+        </div>
+    )
   }
 
   return (
@@ -116,7 +145,7 @@ export default function AddCategoryModal({ isOpen, onClose, onSuccess }) {
             </div>
           </div>
 
-          {/* --- SUGESTÕES PADRÃO (Novo Bloco) --- */}
+          {/* --- SUGESTÕES PADRÃO --- */}
           <div>
             <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2"><AlertCircle size={14} className="text-indigo-500" /> Sugestões Padrão (Clique para usar)</h3>
             <div className="grid grid-cols-3 gap-2">
