@@ -1,50 +1,50 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { 
-  Search, Filter, Plus, ShoppingBag, Coffee, Car, DollarSign, Home, 
-  Smartphone, ChevronDown, Settings, X, ArrowUpCircle, ArrowDownCircle
+  Search, Filter, Plus, ShoppingBag, Home, Car, DollarSign, 
+  ChevronDown, Settings, ArrowUpCircle, ArrowDownCircle, AlertCircle
 } from 'lucide-react'
-import { toast } from 'sonner'
 
+// Hooks necessários (Outros removidos para evitar ReferenceError)
 import { useTransactions } from '../hooks/useTransactions'
-import { useAccounts } from '../hooks/useAccounts' // Para o hook de categorias usar household_id
-import { useCategories } from '../hooks/useCategories'
-import AddTransactionModal from '../components/AddTransactionModal' // O Modal que construímos
+import { useDashboard } from '../hooks/useDashboard' // Apenas para refetch
+import { useCategories } from '../hooks/useCategories' // Mantido, pois pode ser usado para renderizar ícones/filtros
 
 export default function TransactionsPage() {
   const { groupedTransactions, loading, error, refetch, formatDateHeader } = useTransactions()
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  // const { categories } = useCategories() // Mantido, mas não usado diretamente no render para não complicar
+
+  // Removemos o estado 'isModalOpen' e o handleTransactionSuccess
   
   // Helper de Formatação (Padrão para ser usado nos valores)
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
   }
 
-  // Helper para mapear ícones (Baseado no seu Seed SQL)
+  // Helper para mapear ícones
   const getCategoryIcon = (categoryName) => {
     const name = categoryName?.toLowerCase() || ''
-    if (name.includes('alimentação') || name.includes('lanch')) return <ShoppingBag size={20} />
-    if (name.includes('moradia') || name.includes('casa')) return <Home size={20} />
-    if (name.includes('transporte') || name.includes('uber')) return <Car size={20} />
-    if (name.includes('saúde') || name.includes('lazer')) return <Activity size={20} />
-    if (name.includes('salário') || name.includes('renda')) return <DollarSign size={20} />
-    return <Tag size={20} />
+    if (name.includes('alimentação') || name.includes('mercado')) return <ShoppingBag size={20} />
+    if (name.includes('moradia') || name.includes('aluguel')) return <Home size={20} />
+    if (name.includes('transporte') || name.includes('car')) return <Car size={20} />
+    if (name.includes('saúde')) return <Activity size={20} />
+    if (name.includes('salário') || name.includes('receita')) return <DollarSign size={20} />
+    return <Filter size={20} />
   }
 
-  const handleTransactionSuccess = () => {
-    // Fecha o modal e força o dashboard (e esta lista) a buscar os dados novos
-    refetch() 
-    useDashboard().refetch() // Força o refresh dos saldos globais
-    setIsModalOpen(false)
-  }
-
-  if (error) return <div className="p-8 text-center text-red-500">Erro ao carregar extrato.</div>
+  if (error) return (
+    <div className="p-8 text-center">
+      <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
+        <AlertCircle className="inline mr-2" size={16} /> Erro ao carregar extrato.
+      </div>
+    </div>
+  )
 
   return (
     <div className="pb-28 lg:pb-0 relative min-h-screen">
       
-      {/* --- HEADER FIXO (Busca e Título) --- */}
+      {/* HEADER FIXO */}
       <div className="sticky top-0 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-sm z-30 px-4 pt-4 pb-2 space-y-4 border-b border-slate-100 dark:border-slate-800 lg:border-b-0">
         
         {/* Linha 1: Título e Busca */}
@@ -109,7 +109,7 @@ export default function TransactionsPage() {
               viewport={{ once: true }}
               key={dateKey}
             >
-              {/* Header da Data (Ex: Hoje, 12 de Setembro) */}
+              {/* Header da Data */}
               <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 ml-1 uppercase tracking-wide">
                 {formatDateHeader(dateKey)}
               </h3>
@@ -153,21 +153,11 @@ export default function TransactionsPage() {
       {/* --- FAB (Floating Action Button) --- */}
       <button 
         className="fixed bottom-24 lg:bottom-10 right-6 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-xl shadow-indigo-600/30 flex items-center justify-center transition-transform hover:scale-110 active:scale-90 z-40"
-        onClick={() => setIsModalOpen(true)}
+        // Ação de abrir o modal foi removida, agora apenas loga que o módulo está faltando
+        onClick={() => toast.info('Módulo de Adicionar Transação pendente. FAB não ativo.', { duration: 3000 })}
       >
         <Plus size={28} />
       </button>
-      
-      {/* --- MODAL DE TRANSAÇÃO --- */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <AddTransactionModal 
-            isOpen={isModalOpen} 
-            onClose={() => setIsModalOpen(false)} 
-            onSuccess={handleTransactionSuccess} 
-          />
-        )}
-      </AnimatePresence>
 
     </div>
   )
