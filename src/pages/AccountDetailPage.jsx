@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  ChevronLeft, CreditCard, Plus, MoreVertical, Wallet, TrendingUp, Calendar, Trash2 
+  ChevronLeft, CreditCard, Plus, MoreVertical, Wallet, TrendingUp, Calendar, Trash2,ShoppingBag 
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -130,4 +130,5 @@ export default function AccountDetailPage() {
 
     </div>
   )
+
 }
