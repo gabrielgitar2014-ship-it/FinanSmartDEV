@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { X, Check, Loader2, Tag, DollarSign, ArrowUp, ArrowDown, Users, AlertCircle } from 'lucide-react'
+import { X, Check, Loader2, Tag, DollarSign, ArrowUp, ArrowDown, Users, AlertCircle, ShoppingBag, Home, Car, Activity, Gift } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
