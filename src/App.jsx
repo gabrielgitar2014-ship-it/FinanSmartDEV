@@ -20,8 +20,9 @@ import InviteRegisterPage from './pages/InviteRegisterPage'
 import OnboardingPage from './pages/OnboardingPage'
 import DashboardPage from './pages/DashboardPage'
 import AccountsPage from './pages/AccountsPage'
-import AccountDetailPage from './pages/AccountDetailPage' // <--- IMPORTADO
+import AccountDetailPage from './pages/AccountDetailPage' 
 import TransactionsPage from './pages/TransactionsPage'
+import CategoriesPage from './pages/CategoriesPage' // <-- NOVO IMPORT
 
 // Wrapper Protegido
 const ProtectedLayout = () => {
@@ -70,9 +71,10 @@ function App() {
             
             {/* Rotas de Contas */}
             <Route path="/accounts" element={<AccountsPage />} />
-            <Route path="/accounts/:id" element={<AccountDetailPage />} /> {/* <--- NOVA ROTA */}
+            <Route path="/accounts/:id" element={<AccountDetailPage />} /> 
             
             <Route path="/transactions" element={<TransactionsPage />} />
+            <Route path="/transactions/categories" element={<CategoriesPage />} /> {/* <-- NOVA ROTA */}
             
             {/* Placeholders */}
             <Route path="/agents" element={<div className="p-8 text-center text-slate-500">Agentes de IA em breve...</div>} />
