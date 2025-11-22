@@ -3,21 +3,22 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { 
   Search, Filter, Plus, ShoppingBag, Home, Car, DollarSign, 
-  ChevronDown, Settings, ArrowUpCircle, ArrowDownCircle, AlertCircle
+  ChevronDown, Settings, X, ArrowUpCircle, ArrowDownCircle
 } from 'lucide-react'
-
-// Hooks necessários (Outros removidos para evitar ReferenceError)
+import { toast } from 'sonner'
 import { useTransactions } from '../hooks/useTransactions'
-import { useDashboard } from '../hooks/useDashboard' // Apenas para refetch
-import { useCategories } from '../hooks/useCategories' // Mantido, pois pode ser usado para renderizar ícones/filtros
+import { useDashboard } from '../hooks/useDashboard' // Para refetch
+import { useCategories } from '../hooks/useCategories' // Para gerenciar categorias
+// Importamos o useAccounts aqui para seguir o padrão de contexto global
+import { useAccounts } from '../hooks/useAccounts' 
+
 
 export default function TransactionsPage() {
   const { groupedTransactions, loading, error, refetch, formatDateHeader } = useTransactions()
-  // const { categories } = useCategories() // Mantido, mas não usado diretamente no render para não complicar
-
-  // Removemos o estado 'isModalOpen' e o handleTransactionSuccess
+  const { refetch: refetchDashboard } = useDashboard() 
+  const [isModalOpen, setIsModalOpen] = useState(false)
   
-  // Helper de Formatação (Padrão para ser usado nos valores)
+  // Helper de Formatação
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
   }
@@ -33,6 +34,13 @@ export default function TransactionsPage() {
     return <Filter size={20} />
   }
 
+  const handleTransactionSuccess = () => {
+    // Atualiza a lista de transações e o dashboard (saldos)
+    refetch() 
+    refetchDashboard()
+    setIsModalOpen(false)
+  }
+
   if (error) return (
     <div className="p-8 text-center">
       <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
@@ -44,7 +52,7 @@ export default function TransactionsPage() {
   return (
     <div className="pb-28 lg:pb-0 relative min-h-screen">
       
-      {/* HEADER FIXO */}
+      {/* --- HEADER FIXO (Busca e Título) --- */}
       <div className="sticky top-0 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-sm z-30 px-4 pt-4 pb-2 space-y-4 border-b border-slate-100 dark:border-slate-800 lg:border-b-0">
         
         {/* Linha 1: Título e Busca */}
@@ -56,10 +64,10 @@ export default function TransactionsPage() {
         </div>
 
         {/* Linha 2: Filtros e Gerenciamento */}
-        <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
             
             {/* Chips de Filtro */}
-            <div className="flex gap-3 overflow-x-auto no-scrollbar">
+            <div className="flex gap-3">
                 {['Data', 'Categoria', 'Conta'].map((filter) => (
                     <button 
                     key={filter}
@@ -70,12 +78,12 @@ export default function TransactionsPage() {
                 ))}
             </div>
 
-            {/* Link para Gerenciar Categorias */}
+            {/* Link para Categorias (NOVO LAYOUT PARA EVITAR COLISÃO) */}
             <Link 
                 to="/transactions/categories"
-                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 transition-colors shrink-0"
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 transition-colors shrink-0 whitespace-nowrap"
             >
-                <Settings size={14} /> Gerenciar
+                <Settings size={14} /> Categorias
             </Link>
         </div>
         
@@ -85,7 +93,6 @@ export default function TransactionsPage() {
       <div className="px-4 space-y-6 mt-4">
         
         {loading ? (
-          // Skeleton Loading
           [1, 2, 3].map(i => (
             <div key={i} className="space-y-3">
               <div className="h-4 w-40 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
@@ -93,7 +100,6 @@ export default function TransactionsPage() {
             </div>
           ))
         ) : Object.keys(groupedTransactions).length === 0 ? (
-          // Empty State
           <div className="text-center py-20 text-slate-400">
             <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
               <Search size={32} />
@@ -101,7 +107,6 @@ export default function TransactionsPage() {
             <p className="dark:text-slate-400">Nenhuma transação encontrada no mês atual.</p>
           </div>
         ) : (
-          // Renderização dos Grupos
           Object.entries(groupedTransactions).map(([dateKey, transactions]) => (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
@@ -123,7 +128,6 @@ export default function TransactionsPage() {
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                      {/* Ícone */}
                       <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-inner ${
                         item.type === 'income' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'
                       }`}>
@@ -153,12 +157,10 @@ export default function TransactionsPage() {
       {/* --- FAB (Floating Action Button) --- */}
       <button 
         className="fixed bottom-24 lg:bottom-10 right-6 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-xl shadow-indigo-600/30 flex items-center justify-center transition-transform hover:scale-110 active:scale-90 z-40"
-        // Ação de abrir o modal foi removida, agora apenas loga que o módulo está faltando
         onClick={() => toast.info('Módulo de Adicionar Transação pendente. FAB não ativo.', { duration: 3000 })}
       >
         <Plus size={28} />
       </button>
-
     </div>
   )
 }
