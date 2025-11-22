@@ -17,7 +17,7 @@ export default function MonthSelector() {
         onClick={prevMonth} 
         className="p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all active:scale-95"
       >
-        <ChevronLeft size={20} />
+        <ChevronLeft size={25} />
       </button>
 
       <div className="flex flex-col items-center cursor-pointer group">
@@ -37,9 +37,10 @@ export default function MonthSelector() {
         onClick={nextMonth} 
         className="p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all active:scale-95"
       >
-        <ChevronRight size={20} />
+        <ChevronRight size={25} />
       </button>
     </div>
   )
 
 }
+
