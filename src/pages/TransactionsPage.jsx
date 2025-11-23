@@ -3,23 +3,21 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { 
   Search, Filter, Plus, ShoppingBag, Home, Car, DollarSign, 
-  ChevronDown, Settings, X, ArrowUpCircle, ArrowDownCircle
+  ChevronDown, Settings, AlertCircle, Activity, Tag
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useTransactions } from '../hooks/useTransactions'
-import { useDashboard } from '../hooks/useDashboard' // Para refetch
-import { useCategories } from '../hooks/useCategories' // Para gerenciar categorias
-// Importamos o useAccounts aqui para seguir o padrão de contexto global
-import { useAccounts } from '../hooks/useAccounts' 
 
+import { useTransactions } from '../hooks/useTransactions'
+import { useUIStore } from '../store/useUIStore' // <--- 1. IMPORTAR STORE UI
+import { useCategories } from '../hooks/useCategories' 
 
 export default function TransactionsPage() {
-  const { groupedTransactions, loading, error, refetch, formatDateHeader } = useTransactions()
-  const { refetch: refetchDashboard } = useDashboard() 
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const { groupedTransactions, loading, error, formatDateHeader } = useTransactions()
+  const { showValues } = useUIStore() // <--- 2. USAR ESTADO GLOBAL
   
-  // Helper de Formatação
+  // Helper de Formatação com Máscara
   const formatCurrency = (value) => {
+    if (!showValues) return '••••••' // <--- 3. APLICAR MÁSCARA
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
   }
 
@@ -31,20 +29,13 @@ export default function TransactionsPage() {
     if (name.includes('transporte') || name.includes('car')) return <Car size={20} />
     if (name.includes('saúde')) return <Activity size={20} />
     if (name.includes('salário') || name.includes('receita')) return <DollarSign size={20} />
-    return <Filter size={20} />
-  }
-
-  const handleTransactionSuccess = () => {
-    // Atualiza a lista de transações e o dashboard (saldos)
-    refetch() 
-    refetchDashboard()
-    setIsModalOpen(false)
+    return <Tag size={20} />
   }
 
   if (error) return (
     <div className="p-8 text-center">
       <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
-        <AlertCircle className="inline mr-2" size={16} /> Erro ao carregar extrato.
+        <AlertCircle className="inline mr-2" size={16} /> Erro ao carregar extrato: {error}
       </div>
     </div>
   )
@@ -52,10 +43,9 @@ export default function TransactionsPage() {
   return (
     <div className="pb-28 lg:pb-0 relative min-h-screen">
       
-      {/* --- HEADER FIXO (Busca e Título) --- */}
+      {/* HEADER FIXO */}
       <div className="sticky top-0 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-sm z-30 px-4 pt-4 pb-2 space-y-4 border-b border-slate-100 dark:border-slate-800 lg:border-b-0">
         
-        {/* Linha 1: Título e Busca */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Extrato Completo</h1>
           <button className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm text-slate-500 hover:text-indigo-600 transition-colors">
@@ -63,10 +53,7 @@ export default function TransactionsPage() {
           </button>
         </div>
 
-        {/* Linha 2: Filtros e Gerenciamento */}
         <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
-            
-            {/* Chips de Filtro */}
             <div className="flex gap-3">
                 {['Data', 'Categoria', 'Conta'].map((filter) => (
                     <button 
@@ -78,7 +65,7 @@ export default function TransactionsPage() {
                 ))}
             </div>
 
-            {/* Link para Categorias (NOVO LAYOUT PARA EVITAR COLISÃO) */}
+            {/* Link para Categorias */}
             <Link 
                 to="/transactions/categories"
                 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 transition-colors shrink-0 whitespace-nowrap"
@@ -89,7 +76,7 @@ export default function TransactionsPage() {
         
       </div>
 
-      {/* --- LISTA DE TRANSAÇÕES (AGRUPADA) --- */}
+      {/* LISTA DE TRANSAÇÕES */}
       <div className="px-4 space-y-6 mt-4">
         
         {loading ? (
@@ -154,7 +141,7 @@ export default function TransactionsPage() {
         )}
       </div>
 
-      {/* --- FAB (Floating Action Button) --- */}
+      {/* FAB */}
       <button 
         className="fixed bottom-24 lg:bottom-10 right-6 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-xl shadow-indigo-600/30 flex items-center justify-center transition-transform hover:scale-110 active:scale-90 z-40"
         onClick={() => toast.info('Módulo de Adicionar Transação pendente. FAB não ativo.', { duration: 3000 })}
