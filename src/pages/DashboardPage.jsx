@@ -1,42 +1,20 @@
-import { useState, useEffect } from 'react'
-// CORREÇÃO AQUI: Adicionei AnimatePresence na importação
-import { motion, AnimatePresence } from 'framer-motion' 
 import { 
-  Eye, EyeOff, ArrowUpCircle, ArrowDownCircle, Wallet, 
-  Plus, CreditCard, ChevronRight, Sun, Moon, Search, RefreshCw, TrendingUp, ChevronLeft 
+  ArrowUpCircle, ArrowDownCircle, Wallet, 
+  Plus, CreditCard, ChevronRight, TrendingUp 
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 import { useAuth } from '../context/AuthContext'
 import { useDashboard } from '../hooks/useDashboard'
-import { useThemeStore } from '../store/useThemeStore'
 import { useDateStore } from '../store/useDateStore'
-
-import GlobalSearchModal from '../components/GlobalSearchModal'
+import { useUIStore } from '../store/useUIStore' // <--- Importar
 
 export default function DashboardPage() {
-  const { profile } = useAuth()
-  // Apenas lemos a data para exibir no título (Navegação é global agora)
-  const { currentDate } = useDateStore() 
-  const { data, loading, refetch, error } = useDashboard()
-  const { theme, toggleTheme } = useThemeStore()
+  const { data, loading, error } = useDashboard()
+  const { currentDate } = useDateStore()
+  const { showValues } = useUIStore() // <--- Usar Store Global
   
-  const [showValues, setShowValues] = useState(true)
-  const [isSearchOpen, setIsSearchOpen] = useState(false)
-
-  // Atalho Ctrl+K
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        setIsSearchOpen(true)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
-
   const renderValue = (value, type = 'default') => {
     if (loading) {
       return <div className={`h-6 bg-white/20 rounded animate-pulse ${type === 'header' ? 'w-32' : 'w-20'}`} />
@@ -50,51 +28,11 @@ export default function DashboardPage() {
   const displayMonth = format(currentDate, 'MMMM', { locale: ptBR })
   const capitalizedMonth = displayMonth.charAt(0).toUpperCase() + displayMonth.slice(1)
 
-  if (error) {
-    return (
-      <div className="p-8 text-center flex flex-col items-center justify-center h-[50vh]">
-        <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-2xl text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 max-w-sm">
-          <p className="font-bold text-lg mb-2">Erro de conexão</p>
-          <p className="text-sm mb-4 opacity-80">{error}</p>
-          <button onClick={refetch} className="w-full bg-red-100 dark:bg-red-800 px-4 py-3 rounded-xl text-sm font-bold hover:brightness-95 transition-all">
-            Tentar Novamente
-          </button>
-        </div>
-      </div>
-    )
-  }
+  if (error) return <div className="p-8 text-center text-red-500">Erro: {error}</div>
 
   return (
-    <div className="pb-32 lg:pb-0 space-y-6 max-w-5xl mx-auto animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500">
       
-      {/* HEADER */}
-      <div className="flex items-center justify-between px-1 py-2">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center font-bold text-sm shadow-md border-2 border-white dark:border-slate-800 uppercase">
-            {profile?.full_name?.charAt(0) || 'U'}
-          </div>
-          <div className="hidden sm:block">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Olá,</p>
-            <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{profile?.full_name?.split(' ')[0]}</p>
-          </div>
-        </div>
-
-        <div className="flex gap-1 sm:gap-2">
-          <button onClick={() => setIsSearchOpen(true)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-all" title="Buscar (Ctrl+K)">
-            <Search size={20} />
-          </button>
-          <button onClick={toggleTheme} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-all hidden sm:block">
-            {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
-          </button>
-          <button onClick={() => setShowValues(!showValues)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-all">
-            {showValues ? <Eye size={20} /> : <EyeOff size={20} />}
-          </button>
-          <button onClick={refetch} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-all">
-            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
-
       {/* CARD SALDO */}
       <div className="relative w-full h-48 bg-slate-900 dark:bg-black rounded-[2rem] p-6 text-white shadow-2xl shadow-slate-900/20 dark:shadow-black/50 overflow-hidden flex flex-col justify-between transition-all hover:scale-[1.01] duration-500">
         <div className="absolute top-[-50%] right-[-20%] w-80 h-80 bg-indigo-600/30 rounded-full blur-[80px] animate-pulse"></div>
@@ -159,7 +97,7 @@ export default function DashboardPage() {
                   <div><p className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-1">{item.label}</p><p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{item.category}</p></div>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className={`text-sm font-bold font-mono ${item.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-slate-200'}`}>{showValues ? <>{item.type === 'income' ? '+' : ''} {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(item.amount))}</> : '••••••'}</p>
+                  <p className={`text-sm font-bold font-mono ${item.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-slate-200'}`}>{renderValue(Math.abs(item.amount)).replace('R$', '')}</p>
                   <p className="text-[10px] text-slate-400 font-medium mt-0.5">{item.date}</p>
                 </div>
               </div>
@@ -167,11 +105,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-
-      {/* 5. GLOBAL SEARCH MODAL */}
-      <AnimatePresence>
-        {isSearchOpen && <GlobalSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />}
-      </AnimatePresence>
 
     </div>
   )
