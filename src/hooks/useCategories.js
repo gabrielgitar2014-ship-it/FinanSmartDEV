@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { SYSTEM_CATEGORIES } from '../constants/categories'
 import { useDateStore } from '../store/useDateStore'
 import { useSyncStore } from '../store/useSyncStore'
 import { startOfMonth, endOfMonth } from 'date-fns'
@@ -9,70 +8,60 @@ export function useCategories() {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   
-  // Dependencies for fetching usage data
   const currentDate = useDateStore(state => state.currentDate)
-  const syncVersion = useSyncStore(state => state.syncVersion) // For real-time updates
+  const syncVersion = useSyncStore(state => state.syncVersion)
 
   const fetchCategories = useCallback(async () => {
     try {
       setLoading(true)
       
-      // 1. Fetch CUSTOM Categories (user-created only)
-      const { data: customCategories, error } = await supabase
+      // 1. BUSCAR TODAS AS CATEGORIAS DO BANCO (Sistema + Custom)
+      // Removemos o filtro .eq('is_system_default', false) para trazer tudo
+      const { data: allCategories, error } = await supabase
         .from('categories')
         .select(`id, name, type, icon_slug, is_system_default`)
-        .eq('is_system_default', false) // <--- CRITICAL FILTER: ONLY CUSTOM
         .order('name')
 
       if (error) throw error
       
-      const customIds = (customCategories || []).map(c => c.id)
+      const allIds = (allCategories || []).map(c => c.id)
 
-      // 2. Fetch Spending for the Selected Month (Aggregate)
+      // 2. Buscar Gastos (Opcional, para a tela de gerenciamento)
       const dateRange = {
         start: startOfMonth(currentDate).toISOString(),
         end: endOfMonth(currentDate).toISOString(),
       }
       
-      // Query to aggregate spending by category ID for the current month
-      // Note: We select only the category_ids we care about (customIds)
       const { data: spendingData, error: spendingError } = await supabase
         .from('transactions')
         .select('category_id, amount, type')
-        .in('category_id', customIds)
+        .in('category_id', allIds)
         .gte('date', dateRange.start)
         .lte('date', dateRange.end)
 
       if (spendingError) throw spendingError
 
-      // 3. Process Usage Data: Group by category_id and sum only expenses
       const spendingMap = spendingData.reduce((acc, tx) => {
-        if (!tx.category_id || tx.type !== 'expense') return acc; // Ignore income for spending total
-        
+        if (!tx.category_id) return acc;
+        // Soma despesas (se for expense) ou receitas (se for income)
+        // Para simplificar visualização, somamos o valor absoluto
         const id = tx.category_id;
-        const amount = Number(tx.amount); // Amount is already negative from insertion
+        const amount = Math.abs(Number(tx.amount));
         
         acc[id] = (acc[id] || 0) + amount;
         return acc;
       }, {});
 
-      // 4. Merge Data: Combine usage with the category object
-      const finalCategories = customCategories.map(cat => ({
+      // 3. Merge final
+      const finalCategories = allCategories.map(cat => ({
         ...cat,
-        // We want the absolute value for display purposes (R$ 100,00 spent)
-        totalSpent: Math.abs(spendingMap[cat.id] || 0), 
+        totalSpent: spendingMap[cat.id] || 0, 
       }));
       
-      // The hook must still return ALL categories (System + Custom) because AddTransactionModal needs them.
-      // But the CategoriesPage will only render the 'finalCategories' (custom ones).
-      const allCategories = [...SYSTEM_CATEGORIES, ...finalCategories];
-      
-      setCategories(allCategories);
+      setCategories(finalCategories);
       
     } catch (err) {
       console.error('[useCategories] Erro:', err);
-      // Fallback: If DB fails, we still show the static list for robustness
-      setCategories(SYSTEM_CATEGORIES); 
     } finally {
       setLoading(false);
     }
@@ -82,6 +71,5 @@ export function useCategories() {
     fetchCategories();
   }, [fetchCategories]);
 
-  // Exportamos a lista completa (para o modal) e a função de refresh
   return { categories, loading, refetch: fetchCategories };
 }
