@@ -69,7 +69,7 @@ export default function AddExpenseModal({ isOpen, onClose, onSuccess }) {
           .eq('account_id', accountId)
         
         setAccountCards(data || [])
-        // Lógica de seleção inicial inteligente
+        // Lógica inteligente: se tem cartão, sugere crédito
         if (data && data.length > 0) setPaymentMethod('credit')
         else setPaymentMethod('debit')
       }
@@ -103,6 +103,7 @@ export default function AddExpenseModal({ isOpen, onClose, onSuccess }) {
       // Lógica de Fechamento de Fatura
       if (paymentMethod === 'credit' && selectedCardData?.closing_day) {
         const purchaseDay = getDate(baseDate)
+        // Se comprou DEPOIS ou NO DIA do fechamento, a 1ª parcela cai no mês seguinte
         if (purchaseDay >= selectedCardData.closing_day) {
           startMonthOffset = 1
         }
@@ -117,7 +118,7 @@ export default function AddExpenseModal({ isOpen, onClose, onSuccess }) {
             const installmentDate = addMonths(baseDate, i + startMonthOffset)
             transactionsToInsert.push({
                 description: `${description} (${i + 1}/${installments})`,
-                amount: -Math.abs(installmentValue),
+                amount: -Math.abs(installmentValue), // Valor negativo
                 type: 'expense',
                 date: installmentDate.toISOString().split('T')[0],
                 category_id: categoryId,
@@ -140,10 +141,6 @@ export default function AddExpenseModal({ isOpen, onClose, onSuccess }) {
       } else {
         // --- À VISTA (DÉBITO / PIX / CRÉDITO) ---
         const finalAmount = -Math.abs(numericAmount)
-        
-        // Mapeia o paymentMethod para metadados se quiser salvar que foi PIX especificamente
-        // O banco tem coluna 'type', mas podemos usar observation ou criar coluna method futura.
-        // Por enquanto, PIX entra como transação normal na conta.
         
         const { error } = await supabase.from('transactions').insert({
             description: paymentMethod === 'pix' ? `Pix: ${description}` : description,
@@ -190,6 +187,7 @@ export default function AddExpenseModal({ isOpen, onClose, onSuccess }) {
   }
 
   return (
+    // Z-Index alto (70) para ficar acima do footer
     <div className="fixed inset-0 z-[70] flex items-end lg:items-center justify-center p-0 lg:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       
@@ -198,16 +196,16 @@ export default function AddExpenseModal({ isOpen, onClose, onSuccess }) {
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
         className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl lg:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
-        {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-red-50 dark:bg-red-900/10 sticky top-0 z-10">
+        {/* Header Fixo no Topo do Modal */}
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-red-50 dark:bg-red-900/10 shrink-0 z-20">
             <h2 className="text-xl font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
                 Nova Despesa
             </h2>
             <button onClick={onClose} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm"><X size={20} /></button>
         </div>
 
-        {/* Conteúdo */}
-        <div className="p-6 space-y-5 overflow-y-auto pb-24">
+        {/* Conteúdo com Scroll - pb-28 para garantir que o último item não fique atrás do botão fixo */}
+        <div className="p-6 space-y-5 overflow-y-auto flex-1 pb-28">
           
           {/* Valor */}
           <div>
@@ -241,59 +239,43 @@ export default function AddExpenseModal({ isOpen, onClose, onSuccess }) {
             </div>
 
             {/* Seletor de Método (Crédito / Débito / Pix) */}
-            <div className="space-y-3 animate-in fade-in">
-                <div className="flex gap-2">
-                    {/* Botão Débito */}
-                    <button 
-                        onClick={() => { setPaymentMethod('debit'); setIsInstallment(false); }} 
-                        className={`flex-1 py-2 px-2 rounded-lg border text-xs sm:text-sm font-bold flex items-center justify-center gap-1 transition-all ${paymentMethod === 'debit' ? 'border-red-500 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'border-slate-200 dark:border-slate-700 text-slate-500'}`}
-                    >
-                        <Wallet size={14} /> Débito
-                    </button>
-                    
-                    {/* Botão Pix (Novo) */}
-                    <button 
-                        onClick={() => { setPaymentMethod('pix'); setIsInstallment(false); }} 
-                        className={`flex-1 py-2 px-2 rounded-lg border text-xs sm:text-sm font-bold flex items-center justify-center gap-1 transition-all ${paymentMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-slate-200 dark:border-slate-700 text-slate-500'}`}
-                    >
-                        <QrCode size={14} /> Pix
-                    </button>
+            {accountCards.length > 0 && (
+                <div className="space-y-3 animate-in fade-in">
+                    <div className="flex gap-2">
+                        <button onClick={() => { setPaymentMethod('debit'); setIsInstallment(false); }} className={`flex-1 py-2 px-2 rounded-lg border text-xs sm:text-sm font-bold flex items-center justify-center gap-1 transition-all ${paymentMethod === 'debit' ? 'border-red-500 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'border-slate-200 dark:border-slate-700 text-slate-500'}`}><Wallet size={14} /> Débito</button>
+                        <button onClick={() => { setPaymentMethod('pix'); setIsInstallment(false); }} className={`flex-1 py-2 px-2 rounded-lg border text-xs sm:text-sm font-bold flex items-center justify-center gap-1 transition-all ${paymentMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-slate-200 dark:border-slate-700 text-slate-500'}`}><QrCode size={14} /> Pix</button>
+                        <button onClick={() => setPaymentMethod('credit')} className={`flex-1 py-2 px-2 rounded-lg border text-xs sm:text-sm font-bold flex items-center justify-center gap-1 transition-all ${paymentMethod === 'credit' ? 'border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'border-slate-200 dark:border-slate-700 text-slate-500'}`}><CreditCard size={14} /> Crédito</button>
+                    </div>
 
-                    {/* Botão Crédito (Só se tiver cartão) */}
-                    {accountCards.length > 0 && (
-                        <button 
-                            onClick={() => setPaymentMethod('credit')} 
-                            className={`flex-1 py-2 px-2 rounded-lg border text-xs sm:text-sm font-bold flex items-center justify-center gap-1 transition-all ${paymentMethod === 'credit' ? 'border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'border-slate-200 dark:border-slate-700 text-slate-500'}`}
-                        >
-                            <CreditCard size={14} /> Crédito
-                        </button>
+                    {/* Opções de Crédito */}
+                    {paymentMethod === 'credit' && (
+                        <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-xl border border-purple-100 dark:border-purple-800/30 space-y-3 animate-in slide-in-from-top-2">
+                            <select value={selectedCardId} onChange={e => setSelectedCardId(e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-lg p-2 text-sm font-bold text-purple-900 dark:text-purple-100 outline-none">
+                                <option value="" disabled>Escolher cartão...</option>
+                                {accountCards.map(card => (
+                                    <option key={card.id} value={card.id}>
+                                        {card.name} (Disp: R$ {card.available_limit})
+                                    </option>
+                                ))}
+                            </select>
+
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-bold text-purple-900 dark:text-purple-200 flex items-center gap-2"><Layers size={16}/> Parcelar?</span>
+                                <button onClick={() => setIsInstallment(!isInstallment)} className={`w-10 h-5 rounded-full p-0.5 transition-colors ${isInstallment ? 'bg-purple-600' : 'bg-slate-300'}`}><div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${isInstallment ? 'translate-x-5' : 'translate-x-0'}`} /></button>
+                            </div>
+
+                            {isInstallment && (
+                                <div className="flex gap-2 mt-1 animate-in slide-in-from-top-1">
+                                    <input type="number" min="2" max="36" value={installments} onChange={e => setInstallments(e.target.value)} className="w-20 bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-lg p-2 text-center font-bold outline-none" />
+                                    <div className="flex-1 flex items-center justify-center bg-white dark:bg-slate-900 rounded-lg border border-purple-200 dark:border-purple-800 text-xs text-purple-800 dark:text-purple-200 font-medium">
+                                        {installments}x de {amount ? (parseFloat(amount.replace(/\./g, '').replace(',', '.'))/installments).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'}) : 'R$ 0,00'}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
-
-                {/* Opções de Crédito */}
-                {paymentMethod === 'credit' && accountCards.length > 0 && (
-                    <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-xl border border-purple-100 dark:border-purple-800/30 space-y-3 animate-in slide-in-from-top-2">
-                        <select value={selectedCardId} onChange={e => setSelectedCardId(e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-lg p-2 text-sm font-bold text-purple-900 dark:text-purple-100 outline-none">
-                            <option value="" disabled>Escolher cartão...</option>
-                            {accountCards.map(card => <option key={card.id} value={card.id}>{card.name} (Disp: R$ {card.available_limit})</option>)}
-                        </select>
-
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold text-purple-900 dark:text-purple-200 flex items-center gap-2"><Layers size={16}/> Parcelar?</span>
-                            <button onClick={() => setIsInstallment(!isInstallment)} className={`w-10 h-5 rounded-full p-0.5 transition-colors ${isInstallment ? 'bg-purple-600' : 'bg-slate-300'}`}><div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${isInstallment ? 'translate-x-5' : 'translate-x-0'}`} /></button>
-                        </div>
-
-                        {isInstallment && (
-                            <div className="flex gap-2 mt-1 animate-in slide-in-from-top-1">
-                                <input type="number" min="2" max="36" value={installments} onChange={e => setInstallments(e.target.value)} className="w-20 bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-lg p-2 text-center font-bold outline-none" />
-                                <div className="flex-1 flex items-center justify-center bg-white dark:bg-slate-900 rounded-lg border border-purple-200 dark:border-purple-800 text-xs text-purple-800 dark:text-purple-200 font-medium">
-                                    {installments}x de {amount ? (parseFloat(amount.replace(/\./g, '').replace(',', '.'))/installments).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'}) : 'R$ 0,00'}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -301,7 +283,6 @@ export default function AddExpenseModal({ isOpen, onClose, onSuccess }) {
               <label className="text-xs font-bold text-slate-500 ml-1">Categoria</label>
               <div className="relative">
                 <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                {/* FILTRO APLICADO: APENAS DESPESAS */}
                 <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 pl-9 text-sm font-medium text-slate-700 dark:text-slate-200 appearance-none outline-none focus:ring-2 focus:ring-red-500">
                   <option value="" disabled>Selecionar</option>
                   {filteredCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -310,10 +291,7 @@ export default function AddExpenseModal({ isOpen, onClose, onSuccess }) {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-500 ml-1">Data</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 pl-9 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-red-500" />
-              </div>
+              <div className="relative"><Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-xl p-3 pl-9 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-red-500" /></div>
             </div>
           </div>
 
@@ -330,12 +308,15 @@ export default function AddExpenseModal({ isOpen, onClose, onSuccess }) {
                 />
              </div>
           </div>
-
-          <button onClick={handleSubmit} disabled={loading} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-lg shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70">
-            {loading ? <Loader2 className="animate-spin" /> : <>Confirmar Despesa <Check size={20} /></>}
-          </button>
-
         </div>
+
+        {/* Footer Fixo com Botão de Confirmar */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 z-20 pb-safe">
+            <button onClick={handleSubmit} disabled={loading} className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-lg shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70">
+                {loading ? <Loader2 className="animate-spin" /> : <>Confirmar Despesa <Check size={20} /></>}
+            </button>
+        </div>
+
       </motion.div>
     </div>
   )
