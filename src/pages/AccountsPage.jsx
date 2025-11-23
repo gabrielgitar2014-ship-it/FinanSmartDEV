@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom' // <--- IMPORTANTE
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  Plus, Wallet, MoreHorizontal, Eye, EyeOff, Building2, RefreshCw, TrendingUp, Trash2, Edit2, DollarSign 
+  Plus, Wallet, MoreHorizontal, Building2, RefreshCw, TrendingUp, Trash2, Edit2, DollarSign 
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useAccounts } from '../hooks/useAccounts'
 import { getBankBySlug } from '../constants/banks'
 import { supabase } from '../lib/supabaseClient'
+import { useUIStore } from '../store/useUIStore' // <--- 1. IMPORTAR STORE UI
 
 import AddAccountModal from '../components/AddAccountModal'
 import EditAccountModal from '../components/EditAccountModal'
@@ -16,11 +17,12 @@ import BalanceModal from '../components/BalanceModal'
 import ConfirmationModal from '../components/ConfirmationModal'
 
 export default function AccountsPage() {
-  const navigate = useNavigate() // <--- HOOK DE NAVEGAÇÃO
+  const navigate = useNavigate()
   const { accounts, loading, refetch, error, updateAccount } = useAccounts()
   
-  // Estados de Interface
-  const [showValues, setShowValues] = useState(true)
+  // 2. USAR ESTADO GLOBAL (Sem useState local para showValues)
+  const { showValues } = useUIStore()
+  
   const [openMenuId, setOpenMenuId] = useState(null)
   
   // Controle de Modais
@@ -28,13 +30,12 @@ export default function AccountsPage() {
   const [editingAccount, setEditingAccount] = useState(null)
   const [balancingAccount, setBalancingAccount] = useState(null)
   
-  // Estados para Exclusão
   const [accountToDelete, setAccountToDelete] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
   const formatCurrency = (value) => {
     if (loading) return '...'
-    if (!showValues) return '••••••'
+    if (!showValues) return '••••••' // <--- Respeita o global
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0)
   }
 
@@ -101,9 +102,8 @@ export default function AccountsPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">Gerencie seus bancos e cartões</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={(e) => { e.stopPropagation(); setShowValues(!showValues) }} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm border border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors">
-            {showValues ? <Eye size={20} /> : <EyeOff size={20} />}
-          </button>
+          {/* REMOVIDO BOTÃO OLHO (Já tem no Global Header) */}
+          
           <button onClick={(e) => { e.stopPropagation(); refetch(); toast.info('Atualizando...') }} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm border border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors">
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -140,8 +140,6 @@ export default function AccountsPage() {
                 whileHover={{ y: -4 }}
                 className="relative h-[180px] rounded-3xl p-6 shadow-lg flex flex-col justify-between overflow-visible text-white transition-all group z-0 hover:z-10 cursor-pointer"
                 style={{ backgroundColor: bankVisuals.color, color: bankVisuals.textColor || '#fff' }}
-                
-                // --- NAVEGAÇÃO AO CLICAR NO CARD ---
                 onClick={() => navigate(`/accounts/${acc.id}`)} 
               >
                 <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none group-hover:bg-white/20 transition-colors"></div>
@@ -161,7 +159,7 @@ export default function AccountsPage() {
                   <div className="relative">
                     <button 
                       onClick={(e) => { 
-                        e.stopPropagation(); // IMPEDE NAVEGAÇÃO AO ABRIR MENU
+                        e.stopPropagation(); 
                         setOpenMenuId(isMenuOpen ? null : acc.id) 
                       }}
                       className="p-1 rounded-full hover:bg-white/20 transition-colors"
@@ -175,7 +173,7 @@ export default function AccountsPage() {
                           initial={{ opacity: 0, scale: 0.9, y: 10 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.9 }}
-                          onClick={(e) => e.stopPropagation()} // IMPEDE NAVEGAÇÃO AO CLICAR DENTRO DO MENU
+                          onClick={(e) => e.stopPropagation()} 
                           className="absolute right-0 top-8 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 w-40 overflow-hidden z-50"
                         >
                           <button 
