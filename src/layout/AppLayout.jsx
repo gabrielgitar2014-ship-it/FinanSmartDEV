@@ -20,7 +20,7 @@ export default function AppLayout() {
   const { theme, toggleTheme } = useThemeStore()
   const { showValues, toggleValues } = useUIStore()
   
-  // Store de Data
+  // Store de Data (Navegação)
   const { currentDate, nextMonth, prevMonth, setCurrentDate } = useDateStore()
   
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -31,16 +31,21 @@ export default function AppLayout() {
   const capitalizedMonth = displayMonth.charAt(0).toUpperCase() + displayMonth.slice(1)
   const displayYear = format(currentDate, 'yyyy')
   
-  // Formato YYYY-MM-DD para garantir compatibilidade com type="date"
+  // Valor para o input nativo (Formato YYYY-MM-DD para type="date")
+  // Usamos o dia 01 para garantir validade
   const inputValue = format(currentDate, 'yyyy-MM-01')
 
-  // --- LÓGICA DO CALENDÁRIO ---
+  // --- LÓGICA DO CALENDÁRIO NATIVO ---
   const handleNativeDateChange = (e) => {
     if (!e.target.value) return
-    // Input date retorna YYYY-MM-DD
+    
+    // O input date retorna "2025-06-15"
+    // Como só queremos o mês, pegamos as duas primeiras partes
     const [year, month] = e.target.value.split('-')
-    // Mês em JS é 0-indexado
+    
+    // Criamos a data (Mês em JS é 0-indexado)
     const newDate = new Date(parseInt(year), parseInt(month) - 1, 1)
+    
     setCurrentDate(newDate)
   }
 
@@ -59,7 +64,7 @@ export default function AppLayout() {
     }
   }
 
-  // Atalho Ctrl+K
+  // Atalho de Teclado (Ctrl + K)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
@@ -72,12 +77,13 @@ export default function AppLayout() {
   }, [])
 
   return (
+    // Container Principal: Ocupa 100% da tela e organiza em linha (Sidebar | Conteúdo)
     <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-950 transition-colors duration-300 overflow-hidden">
       
-      {/* Sidebar (Desktop) */}
+      {/* 1. Sidebar (Desktop) - O componente Sidebar já deve ter a classe 'hidden lg:flex' */}
       <Sidebar />
 
-      {/* Área Principal */}
+      {/* 2. Área Principal (Conteúdo + Header) */}
       <main className="flex-1 flex flex-col h-full relative min-w-0">
         
         {/* === HEADER GLOBAL === */}
@@ -85,8 +91,12 @@ export default function AppLayout() {
           
           {/* ESQUERDA: Perfil */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center font-bold text-xs shadow-md border-2 border-white dark:border-slate-800 uppercase">
-              {profile?.full_name?.charAt(0) || 'U'}
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center font-bold text-xs shadow-md border-2 border-white dark:border-slate-800 uppercase overflow-hidden">
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
+              ) : (
+                profile?.full_name?.charAt(0) || 'U'
+              )}
             </div>
             <div className="hidden sm:block">
                <p className="text-[10px] font-bold text-slate-400 uppercase">Olá,</p>
@@ -109,7 +119,7 @@ export default function AppLayout() {
               <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors">
                 {capitalizedMonth}
               </span>
-              <span className="text-[9px] font-semibold text-slate-400">
+              <span className="text-[9px] font-semibold text-slate-400 pointer-events-none">
                 {displayYear}
               </span>
               
@@ -132,7 +142,7 @@ export default function AppLayout() {
 
           {/* DIREITA: Ações */}
           <div className="flex gap-1">
-            <button onClick={() => setIsSearchOpen(true)} className="p-2 text-slate-400 hover:text-indigo-600 rounded-full hover:bg-white dark:hover:bg-slate-800 transition-all" title="Buscar">
+            <button onClick={() => setIsSearchOpen(true)} className="p-2 text-slate-400 hover:text-indigo-600 rounded-full hover:bg-white dark:hover:bg-slate-800 transition-all" title="Buscar (Ctrl+K)">
               <Search size={20} />
             </button>
             <button onClick={toggleTheme} className="p-2 text-slate-400 hover:text-indigo-600 rounded-full hover:bg-white dark:hover:bg-slate-800 transition-all hidden sm:block">
@@ -144,12 +154,13 @@ export default function AppLayout() {
           </div>
         </header>
 
-        {/* Conteúdo das Páginas */}
+        {/* Conteúdo das Páginas (Scrollável) */}
         <div className="flex-1 overflow-y-auto scroll-smooth p-4 md:p-8 pb-32 lg:pb-8 w-full max-w-7xl mx-auto z-10">
           <Outlet />
         </div>
       </main>
 
+      {/* Menu Mobile (Apenas Mobile) */}
       <MobileFooter />
       
       {/* Modal de Busca Global */}
