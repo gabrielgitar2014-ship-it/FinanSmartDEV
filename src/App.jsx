@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import AppLayout from "./layout/AppLayout";
-import PrivateRoute from "./components/PrivateRoute";
+import {PrivateRoute} from "./components/PrivateRoute";
 
 import LoginPage from "./pages/LoginPage";
 import OnboardingPage from "./pages/OnboardingPage";
