@@ -16,11 +16,13 @@ import { ptBR } from "date-fns/locale";
 
 import { supabase } from "../lib/supabaseClient";
 import { useUIStore } from "../store/useUIStore";
+import { useDateStore } from "../store/useDateStore";
 import { getFullInvoiceSummary } from "../lib/billingService";
 
 // Hook simples para formatar valores respeitando o showValues
 function useMoneyFormatter() {
   const { showValues } = useUIStore();
+
   const formatMoney = (value) => {
     if (!showValues) return "••••••";
     return new Intl.NumberFormat("pt-BR", {
@@ -28,6 +30,7 @@ function useMoneyFormatter() {
       currency: "BRL",
     }).format(Number(value || 0));
   };
+
   return { formatMoney, showValues };
 }
 
@@ -36,13 +39,20 @@ export default function CardDetailPage() {
   const navigate = useNavigate();
   const { formatMoney } = useMoneyFormatter();
 
+  // 🔥 Data global selecionada no topo (Novembro, Dezembro, etc.)
+  const { currentDate } = useDateStore();
+
+  // Garante que temos um Date válido para usar no billingService
+  const referenceDate = currentDate ? new Date(currentDate) : new Date();
+
   const [activeTab, setActiveTab] = useState("current"); // 'current' | 'next'
 
   // ==============================
   // QUERY PRINCIPAL
   // ==============================
   const { data, isLoading, error } = useQuery({
-    queryKey: ["card-detail", id],
+    // Quando o mês muda no topo, o ISO da referenceDate muda
+    queryKey: ["card-detail", id, referenceDate.toISOString().slice(0, 10)],
     queryFn: async () => {
       if (!id) throw new Error("Cartão não informado.");
 
@@ -92,8 +102,8 @@ export default function CardDetailPage() {
 
       const txList = transactions || [];
 
-      // Resumo completo de fatura via billingService (sensível ao tempo)
-      const summary = getFullInvoiceSummary(card, txList, new Date());
+      // ✅ Resumo completo de fatura usando a data GLOBAL selecionada
+      const summary = getFullInvoiceSummary(card, txList, referenceDate);
 
       return {
         card,
@@ -156,7 +166,7 @@ export default function CardDetailPage() {
     const activeTitle =
       activeTab === "current" ? "Fatura atual" : "Próxima fatura";
 
-    // 🔥 Agora usamos o período vindo do billingService, que se adapta ao tempo
+    // 🔥 Período vem do billingService, baseado na referenceDate (currentDate do store)
     const activePeriod =
       activeTab === "current" ? summary.currentPeriod : summary.nextPeriod;
 
@@ -248,7 +258,7 @@ export default function CardDetailPage() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                  {activeTitle}
+                  {activeTitle.toUpperCase()}
                 </p>
                 <p className="text-2xl font-bold text-slate-900 dark:text-white">
                   {formatMoney(activeInvoice.total || 0)}
