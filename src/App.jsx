@@ -19,6 +19,7 @@ import RealtimeManager from "./components/RealtimeManager";
 
 export default function App() {
   return (
+    <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <AuthProvider>
         <LanguageProvider>
@@ -61,5 +62,6 @@ export default function App() {
         </LanguageProvider>
       </AuthProvider>
     </BrowserRouter>
+      </QueryClientProvider>
   );
 }
