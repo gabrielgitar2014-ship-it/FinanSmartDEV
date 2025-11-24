@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import AppLayout from "./layout/AppLayout";
-import {PrivateRoute} from "./components/PrivateRoute";
+import PrivateRoute from "./components/PrivateRoute";
 
 import LoginPage from "./pages/LoginPage";
 import OnboardingPage from "./pages/OnboardingPage";
@@ -16,53 +17,51 @@ import CardDetailPage from "./pages/CardDetailPage";
 import { AuthProvider } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import RealtimeManager from "./components/RealtimeManager";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+// 🔥 QueryClient global para TODA a aplicação
+const queryClient = new QueryClient();
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-    <BrowserRouter>
-      <AuthProvider>
-        <LanguageProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <LanguageProvider>
+            <RealtimeManager />
 
-          <RealtimeManager />
+            <Routes>
+              {/* Redirecionamento para dashboard */}
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-          <Routes>
+              {/* Públicas */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/onboarding" element={<OnboardingPage />} />
 
-            {/* 🔥 REDIRECIONAMENTO CORRIGIDO */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              {/* Privadas */}
+              <Route
+                element={
+                  <PrivateRoute>
+                    <AppLayout />
+                  </PrivateRoute>
+                }
+              >
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/accounts" element={<AccountsPage />} />
+                <Route path="/accounts/:id" element={<AccountDetailPage />} />
 
-            {/* PÚBLICAS */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/onboarding" element={<OnboardingPage />} />
+                <Route path="/transactions" element={<TransactionsPage />} />
 
-            {/* PRIVADAS */}
-            <Route
-              element={
-                <PrivateRoute>
-                  <AppLayout />
-                </PrivateRoute>
-              }
-            >
-              <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/add-expense" element={<AddExpensePage />} />
+                <Route path="/add-income" element={<AddIncomePage />} />
 
-              <Route path="/accounts" element={<AccountsPage />} />
-              <Route path="/accounts/:id" element={<AccountDetailPage />} />
+                {/* ⭐ Nova página do cartão */}
+                <Route path="/cards/:id" element={<CardDetailPage />} />
+              </Route>
+            </Routes>
 
-              <Route path="/transactions" element={<TransactionsPage />} />
-
-              <Route path="/add-expense" element={<AddExpensePage />} />
-              <Route path="/add-income" element={<AddIncomePage />} />
-
-              {/* NOVO */}
-              <Route path="/cards/:id" element={<CardDetailPage />} />
-
-            </Route>
-          </Routes>
-
-        </LanguageProvider>
-      </AuthProvider>
-    </BrowserRouter>
-      </QueryClientProvider>
+          </LanguageProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
