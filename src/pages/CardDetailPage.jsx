@@ -1,15 +1,24 @@
+// src/pages/CardDetailPage.jsx
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, CreditCard, AlertCircle, ArrowRight, Calendar, Gauge, Tag } from "lucide-react";
+import {
+  ChevronLeft,
+  CreditCard,
+  AlertCircle,
+  ArrowRight,
+  Calendar,
+  Gauge,
+  Tag,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 import { supabase } from "../lib/supabaseClient";
 import { useUIStore } from "../store/useUIStore";
-import { getFullInvoiceSummary, getBillingCycle } from "../lib/billingService";
+import { getFullInvoiceSummary } from "../services/billingService";
 
-// Formatador de moeda com suporte ao showValues
+// Hook simples para formatar valores respeitando o showValues
 function useMoneyFormatter() {
   const { showValues } = useUIStore();
   const formatMoney = (value) => {
@@ -40,7 +49,9 @@ export default function CardDetailPage() {
       // Buscar dados do cartão
       const { data: card, error: cardError } = await supabase
         .from("credit_cards")
-        .select("id, name, last_4_digits, closing_day, due_day, limit_amount, available_limit, account_id, created_at")
+        .select(
+          "id, name, last_4_digits, closing_day, due_day, limit_amount, available_limit, account_id, created_at"
+        )
         .eq("id", id)
         .single();
 
@@ -81,18 +92,14 @@ export default function CardDetailPage() {
 
       const txList = transactions || [];
 
-      // Resumo completo de fatura via billingService
+      // Resumo completo de fatura via billingService (sensível ao tempo)
       const summary = getFullInvoiceSummary(card, txList, new Date());
-
-      // Ciclo atual de fatura (datas)
-      const billingCycle = getBillingCycle(card, new Date());
 
       return {
         card,
         account,
         transactions: txList,
         summary,
-        billingCycle,
       };
     },
   });
@@ -111,7 +118,10 @@ export default function CardDetailPage() {
         <div className="h-10 bg-slate-100 dark:bg-slate-900 rounded-2xl animate-pulse" />
         <div className="space-y-3">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-16 bg-slate-100 dark:bg-slate-900 rounded-2xl animate-pulse" />
+            <div
+              key={i}
+              className="h-16 bg-slate-100 dark:bg-slate-900 rounded-2xl animate-pulse"
+            />
           ))}
         </div>
       </div>
@@ -122,34 +132,52 @@ export default function CardDetailPage() {
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4 flex gap-3">
           <AlertCircle className="text-red-500 mt-0.5" />
           <div>
-            <p className="font-bold text-red-700 dark:text-red-300">Erro ao carregar cartão</p>
-            <p className="text-sm text-red-600 dark:text-red-400">{error.message}</p>
+            <p className="font-bold text-red-700 dark:text-red-300">
+              Erro ao carregar cartão
+            </p>
+            <p className="text-sm text-red-600 dark:text-red-400">
+              {error.message}
+            </p>
           </div>
         </div>
       </div>
     );
   } else if (data) {
-    const { card, account, summary, billingCycle } = data;
+    const { card, account, summary } = data;
 
     const totalLimit = Number(card.limit_amount || 0);
     const availableLimit = Number(card.available_limit || 0);
     const usedLimit = totalLimit ? totalLimit - availableLimit : null;
 
-    const currentInvoice = summary.currentInvoice;
-    const nextInvoice = summary.nextInvoice;
+    const { currentInvoice, nextInvoice, committedLimit } = summary;
 
-    const activeInvoice = activeTab === "current" ? currentInvoice : nextInvoice;
-    const activeTitle = activeTab === "current" ? "Fatura atual" : "Próxima fatura";
+    const activeInvoice =
+      activeTab === "current" ? currentInvoice : nextInvoice;
+    const activeTitle =
+      activeTab === "current" ? "Fatura atual" : "Próxima fatura";
 
-    const periodStartLabel = format(billingCycle.periodStart, "dd MMM", { locale: ptBR });
-    const periodEndLabel = format(billingCycle.periodEnd, "dd MMM", { locale: ptBR });
+    // 🔥 Agora usamos o período vindo do billingService, que se adapta ao tempo
+    const activePeriod =
+      activeTab === "current" ? summary.currentPeriod : summary.nextPeriod;
 
-    const dueDay = card.due_day ? String(card.due_day).padStart(2, "0") : "--";
+    const periodStartLabel = activePeriod
+      ? format(activePeriod.periodStart, "dd MMM", { locale: ptBR })
+      : "--";
+    const periodEndLabel = activePeriod
+      ? format(activePeriod.periodEnd, "dd MMM", { locale: ptBR })
+      : "--";
+
+    const dueDay = card.due_day
+      ? String(card.due_day).padStart(2, "0")
+      : "--";
 
     // Progresso de limite
     let limitPercent = 0;
     if (totalLimit > 0 && usedLimit !== null) {
-      limitPercent = Math.min(100, Math.max(0, (usedLimit / totalLimit) * 100));
+      limitPercent = Math.min(
+        100,
+        Math.max(0, (usedLimit / totalLimit) * 100)
+      );
     }
 
     content = (
@@ -173,10 +201,12 @@ export default function CardDetailPage() {
                 </h1>
               </div>
               <p className="text-xs text-indigo-100/80 mt-1">
-                {account ? account.name : "Conta"} • •••• {card.last_4_digits || "0000"}
+                {account ? account.name : "Conta"} • ••••{" "}
+                {card.last_4_digits || "0000"}
               </p>
               <p className="text-[11px] uppercase tracking-wide text-indigo-100/70 mt-1">
-                Fecha dia {String(card.closing_day || "--").padStart(2, "0")} • Vence dia {dueDay}
+                Fecha dia {String(card.closing_day || "--").padStart(2, "0")} •
+                Vence dia {dueDay}
               </p>
             </div>
 
@@ -233,7 +263,9 @@ export default function CardDetailPage() {
                 </p>
                 <p className="mt-1 flex items-center gap-1 justify-end">
                   <Gauge size={14} />
-                  <span>Comprometido futuro: {formatMoney(summary.committedLimit || 0)}</span>
+                  <span>
+                    Comprometido futuro: {formatMoney(committedLimit || 0)}
+                  </span>
                 </p>
               </div>
             </div>
@@ -281,7 +313,9 @@ export default function CardDetailPage() {
               <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center mb-3">
                 <CreditCard size={22} />
               </div>
-              <p className="text-sm font-medium">Nenhuma transação nessa fatura.</p>
+              <p className="text-sm font-medium">
+                Nenhuma transação nessa fatura.
+              </p>
               <p className="text-xs mt-1 text-slate-500 dark:text-slate-400">
                 As compras feitas com este cartão irão aparecer aqui.
               </p>
@@ -289,8 +323,13 @@ export default function CardDetailPage() {
           ) : (
             <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
               {activeInvoice.transactions.map((tx, index) => {
-                const isLast = index === activeInvoice.transactions.length - 1;
-                const dateLabel = format(new Date(tx.date + "T12:00:00"), "dd/MM", { locale: ptBR });
+                const isLast =
+                  index === activeInvoice.transactions.length - 1;
+                const dateLabel = format(
+                  new Date(tx.date + "T12:00:00"),
+                  "dd/MM",
+                  { locale: ptBR }
+                );
                 const categoryName = tx.categories?.name || "Outros";
                 const isInstallment = tx.installment_total > 1;
 
@@ -298,12 +337,17 @@ export default function CardDetailPage() {
                   <div
                     key={tx.id}
                     className={`flex items-center justify-between px-4 py-3 ${
-                      !isLast ? "border-b border-slate-100 dark:border-slate-800/70" : ""
+                      !isLast
+                        ? "border-b border-slate-100 dark:border-slate-800/70"
+                        : ""
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                        <Tag size={16} className="text-slate-500 dark:text-slate-300" />
+                        <Tag
+                          size={16}
+                          className="text-slate-500 dark:text-slate-300"
+                        />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
@@ -317,7 +361,8 @@ export default function CardDetailPage() {
                             <>
                               <span>•</span>
                               <span>
-                                {tx.installment_number}/{tx.installment_total}
+                                {tx.installment_number}/
+                                {tx.installment_total}
                               </span>
                             </>
                           )}
