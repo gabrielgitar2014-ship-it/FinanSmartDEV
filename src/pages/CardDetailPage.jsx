@@ -16,7 +16,7 @@ import { ptBR } from "date-fns/locale";
 
 import { supabase } from "../lib/supabaseClient";
 import { useUIStore } from "../store/useUIStore";
-import { getFullInvoiceSummary } from "../services/billingService";
+import { getFullInvoiceSummary } from "../lib/billingService";
 
 // Hook simples para formatar valores respeitando o showValues
 function useMoneyFormatter() {
