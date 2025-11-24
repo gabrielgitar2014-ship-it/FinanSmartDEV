@@ -16,6 +16,7 @@ import CardDetailPage from "./pages/CardDetailPage";
 import { AuthProvider } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import RealtimeManager from "./components/RealtimeManager";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 export default function App() {
   return (
