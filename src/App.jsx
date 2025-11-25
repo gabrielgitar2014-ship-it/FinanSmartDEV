@@ -56,10 +56,10 @@ export default function App() {
                 <Route path="/add-expense" element={<AddExpensePage />} />
                 <Route path="/add-income" element={<AddIncomePage />} />
 
-                {/* ⭐ Página de detalhes do cartão */}
+             
                 <Route path="/cards/:id" element={<CardDetailPage />} />
 
-                {/* ⭐ Nova rota de Settings */}
+              
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Routes>
