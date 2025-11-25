@@ -49,7 +49,8 @@ export default function App() {
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/accounts/:id" element={<AccountDetailPage />} />
-                <Route path="/accounts/new element={<CreateAccountPage />} />
+                {/* Correção aplicada abaixo */}
+                <Route path="/accounts/new" element={<CreateAccountPage />} />
 
                 <Route path="/transactions" element={<TransactionsPage />} />
 
