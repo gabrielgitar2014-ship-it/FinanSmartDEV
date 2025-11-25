@@ -14,7 +14,7 @@ import AddExpensePage from "./pages/AddExpensePage";
 import AddIncomePage from "./pages/AddIncomePage";
 import CardDetailPage from "./pages/CardDetailPage";
 import SettingsPage from "./pages/SettingsPage"; // ⭐ nova importação
-
+import CreateAccountPage from "./pages/CreateAccountPage";
 import { AuthProvider } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import RealtimeManager from "./components/RealtimeManager";
@@ -49,6 +49,7 @@ export default function App() {
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/accounts/:id" element={<AccountDetailPage />} />
+                <Route path="/accounts/new element={<CreateAccountPage />} />
 
                 <Route path="/transactions" element={<TransactionsPage />} />
 
