@@ -1,3 +1,4 @@
+// src/hooks/useAccountDetails.js
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
@@ -8,7 +9,11 @@ export function useAccountDetails(accountId) {
   const [error, setError] = useState(null)
 
   const fetchAccountDetails = useCallback(async () => {
-    if (!accountId) {
+    // 🔥 Fluxo de "nova conta": não tentar buscar no banco
+    if (!accountId || accountId === 'new') {
+      setAccount(null)
+      setCreditCards([])
+      setError(null)
       setLoading(false)
       return
     }
@@ -52,6 +57,10 @@ export function useAccountDetails(accountId) {
   // --- FUNÇÃO: CRIAR CARTÃO ---
   const createCard = async (cardData) => {
     try {
+      if (!accountId || accountId === 'new') {
+        throw new Error('Não é possível criar cartão para uma conta não salva.')
+      }
+
       // Validação básica
       if (!cardData.name || !cardData.limit_amount) {
         throw new Error('Nome e limite são obrigatórios')
@@ -66,9 +75,9 @@ export function useAccountDetails(accountId) {
         due_day: Number(cardData.due_day) || 10,
         last_4_digits: cardData.last_4_digits || '****'
       })
-      
+
       if (error) throw error
-      
+
       await fetchAccountDetails() // Recarrega a lista
       return { success: true }
     } catch (err) {
@@ -80,7 +89,6 @@ export function useAccountDetails(accountId) {
   // --- FUNÇÃO: DELETAR CARTÃO ---
   const deleteCard = async (cardId) => {
     try {
-      // Verificar se o cartão tem transações pendentes
       const { data: transactions } = await supabase
         .from('transactions')
         .select('id')
@@ -88,9 +96,9 @@ export function useAccountDetails(accountId) {
         .limit(1)
 
       if (transactions && transactions.length > 0) {
-        return { 
-          success: false, 
-          error: 'Não é possível excluir cartão com transações. Exclua as transações primeiro.' 
+        return {
+          success: false,
+          error: 'Não é possível excluir cartão com transações. Exclua as transações primeiro.'
         }
       }
 
@@ -98,9 +106,9 @@ export function useAccountDetails(accountId) {
         .from('credit_cards')
         .delete()
         .eq('id', cardId)
-      
+
       if (error) throw error
-      
+
       await fetchAccountDetails()
       return { success: true }
     } catch (err) {
@@ -109,11 +117,11 @@ export function useAccountDetails(accountId) {
     }
   }
 
-  return { 
-    account, 
-    creditCards, 
-    loading, 
-    error, 
+  return {
+    account,
+    creditCards,
+    loading,
+    error,
     refetch: fetchAccountDetails,
     createCard,
     deleteCard
