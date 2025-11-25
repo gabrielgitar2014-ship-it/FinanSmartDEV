@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import AppLayout from "./layout/AppLayout";
-import {PrivateRoute} from "./components/PrivateRoute";
+import { PrivateRoute } from "./components/PrivateRoute";
 
 import LoginPage from "./pages/LoginPage";
 import OnboardingPage from "./pages/OnboardingPage";
@@ -13,6 +13,7 @@ import TransactionsPage from "./pages/TransactionsPage";
 import AddExpensePage from "./pages/AddExpensePage";
 import AddIncomePage from "./pages/AddIncomePage";
 import CardDetailPage from "./pages/CardDetailPage";
+import SettingsPage from "./pages/SettingsPage"; // ⭐ nova importação
 
 import { AuthProvider } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
@@ -54,11 +55,13 @@ export default function App() {
                 <Route path="/add-expense" element={<AddExpensePage />} />
                 <Route path="/add-income" element={<AddIncomePage />} />
 
-                {/* ⭐ Nova página do cartão */}
+                {/* ⭐ Página de detalhes do cartão */}
                 <Route path="/cards/:id" element={<CardDetailPage />} />
+
+                {/* ⭐ Nova rota de Settings */}
+                <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Routes>
-
           </LanguageProvider>
         </AuthProvider>
       </BrowserRouter>
