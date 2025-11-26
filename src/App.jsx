@@ -13,8 +13,10 @@ import TransactionsPage from "./pages/TransactionsPage";
 import AddExpensePage from "./pages/AddExpensePage";
 import AddIncomePage from "./pages/AddIncomePage";
 import CardDetailPage from "./pages/CardDetailPage";
-import SettingsPage from "./pages/SettingsPage"; // ⭐ nova importação
+import SettingsPage from "./pages/SettingsPage"; 
 import CreateAccountPage from "./pages/CreateAccountPage";
+import AiAgentsPage from "./pages/AiAgentsPage"; // ⭐ NOVA IMPORTAÇÃO
+
 import { AuthProvider } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import RealtimeManager from "./components/RealtimeManager";
@@ -49,7 +51,6 @@ export default function App() {
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/accounts/:id" element={<AccountDetailPage />} />
-                {/* Correção aplicada abaixo */}
                 <Route path="/accounts/new" element={<CreateAccountPage />} />
 
                 <Route path="/transactions" element={<TransactionsPage />} />
@@ -57,11 +58,12 @@ export default function App() {
                 <Route path="/add-expense" element={<AddExpensePage />} />
                 <Route path="/add-income" element={<AddIncomePage />} />
 
-             
                 <Route path="/cards/:id" element={<CardDetailPage />} />
-
-              
                 <Route path="/settings" element={<SettingsPage />} />
+
+                {/* ⭐ NOVA ROTA DE AGENTES IA */}
+                <Route path="/agents" element={<AiAgentsPage />} />
+                
               </Route>
             </Routes>
           </LanguageProvider>
