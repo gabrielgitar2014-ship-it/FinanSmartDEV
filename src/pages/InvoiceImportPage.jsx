@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Upload, Loader2, Check, Trash2, MousePointer2, Layers, 
   ChevronDown, ChevronUp, Receipt, Sparkles, ArrowLeft, Save, 
-  Edit3, Calendar, History, FastForward, CreditCard, Bot 
+  Edit3, Calendar, History, FastForward, CreditCard 
 } from 'lucide-react';
 import { addMonths, parse, format, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -34,9 +34,13 @@ export default function InvoiceImportPage() {
   const [selectionBox, setSelectionBox] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
   
+  // Lista de Transações (Visualização Simplificada)
   const [confirmedTransactions, setConfirmedTransactions] = useState([]);
+  
+  // Configurações
   const [autoExpandInstallments, setAutoExpandInstallments] = useState(true);
   
+  // Cartões de Crédito
   const [creditCards, setCreditCards] = useState([]);
   const [selectedCardId, setSelectedCardId] = useState('');
 
@@ -58,9 +62,7 @@ export default function InvoiceImportPage() {
         if (error) throw error;
         
         setCreditCards(data || []);
-        if (data && data.length > 0) {
-          setSelectedCardId(data[0].id);
-        }
+        // Não seleciona automaticamente para forçar o usuário a escolher
       } catch (err) {
         console.error("Erro ao buscar cartões:", err);
       }
@@ -69,79 +71,81 @@ export default function InvoiceImportPage() {
   }, []);
 
   // =========================================================
-  // 🧠 LÓGICA DE PARCELAMENTO INTELIGENTE
+  // 🧠 LÓGICA DE PARCELAMENTO (AGORA SILENCIOSA)
   // =========================================================
 
-  const expandTransaction = (tx) => {
-    if (!tx.installment || !autoExpandInstallments) return [tx];
+  // Esta função só é chamada na hora de SALVAR, não na visualização
+  const generateInstallmentsPayload = (tx) => {
+    // Se não tiver parcela ou expansão desligada, retorna o item único
+    if (!tx.installment || !autoExpandInstallments) return [formatPayloadItem(tx)];
 
     try {
       const parts = tx.installment.split('/').map(n => parseInt(n.trim()));
       const current = parts[0];
       const total = parts[1];
       
-      if (!current || !total || isNaN(current) || isNaN(total)) return [tx];
+      if (!current || !total || isNaN(current) || isNaN(total)) return [formatPayloadItem(tx)];
 
       let dateObj = parse(tx.date, 'dd/MM', new Date());
       if (!isValid(dateObj)) {
          dateObj = parse(tx.date, 'dd/MM/yyyy', new Date());
-         if (!isValid(dateObj)) return [tx];
+         // Se data inválida, usa data atual
+         if (!isValid(dateObj)) dateObj = new Date();
       }
 
-      const expandedItems = [];
-      const groupTempId = `${tx.id || Date.now()}`; 
+      const items = [];
+      // Gera UUID temporário para agrupar no banco (se o backend não mandou)
+      const groupTempId = tx.groupId || crypto.randomUUID(); 
 
       for (let i = 1; i <= total; i++) {
         const monthOffset = i - current;
         const newDate = addMonths(dateObj, monthOffset);
         
-        let status = 'pending'; 
-        let tag = 'Atual';
-        
-        if (i < current) {
-            status = 'consolidated'; 
-            tag = 'Passado';
-        } else if (i > current) {
-            status = 'scheduled'; 
-            tag = 'Futuro';
-        }
-
-        expandedItems.push({
-          ...tx,
-          id: `${groupTempId}_inst_${i}`, 
-          groupId: groupTempId,
-          date: format(newDate, 'dd/MM/yyyy'),
+        items.push({
           description: `${tx.description} (${i}/${total})`,
-          value: tx.value,
+          amount: parseAmount(tx.value),
+          type: 'expense',
+          date: format(newDate, 'yyyy-MM-dd'),
+          credit_card_id: selectedCardId,
+          installment_id: groupTempId, // Será substituído por UUID real no save
           installment_number: i,
           installment_total: total,
-          installment_str: `${i}/${total}`,
-          status: status, 
-          tag: tag
+          user_id: user?.id
         });
       }
 
-      return expandedItems;
+      return items;
 
     } catch (e) {
-      console.error("Erro ao expandir parcelas:", e);
-      return [tx];
+      console.error("Erro ao expandir:", e);
+      return [formatPayloadItem(tx)];
     }
   };
 
-  const addTransactions = (newItems) => {
-    let finalItems = [];
-    
-    newItems.forEach(item => {
-        if (item.installment) {
-            const expanded = expandTransaction(item);
-            finalItems = [...finalItems, ...expanded];
-        } else {
-            finalItems.push(item);
-        }
-    });
+  const parseAmount = (val) => {
+    const str = val.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+    const num = parseFloat(str);
+    return isNaN(num) ? 0 : -Math.abs(num); // Sempre negativo para despesa
+  };
 
-    setConfirmedTransactions(prev => [...prev, ...finalItems]);
+  const formatPayloadItem = (tx) => {
+    let dateObj = parse(tx.date, 'dd/MM', new Date());
+    if (!isValid(dateObj)) dateObj = parse(tx.date, 'dd/MM/yyyy', new Date());
+    const dateStr = isValid(dateObj) ? format(dateObj, 'yyyy-MM-dd') : new Date().toISOString().split('T')[0];
+
+    return {
+      description: tx.description,
+      amount: parseAmount(tx.value),
+      type: 'expense',
+      date: dateStr,
+      credit_card_id: selectedCardId,
+      user_id: user?.id
+    };
+  };
+
+  // Adiciona itens à lista visual (sem expandir ainda)
+  const addTransactions = (newItems) => {
+    setConfirmedTransactions(prev => [...prev, ...newItems]);
   };
 
   // =========================================================
@@ -150,7 +154,7 @@ export default function InvoiceImportPage() {
 
   const handleSaveToSupabase = async () => {
     if (!selectedCardId) {
-      alert("Por favor, selecione um cartão de crédito.");
+      alert("ERRO: Selecione um cartão de crédito antes de salvar.");
       return;
     }
     if (confirmedTransactions.length === 0) return;
@@ -158,36 +162,44 @@ export default function InvoiceImportPage() {
     setSaving(true);
 
     try {
+      // 1. Gera UUIDs reais para os grupos de parcelas
       const installmentGroupMap = {}; 
       confirmedTransactions.forEach(tx => {
-        if (tx.groupId && !installmentGroupMap[tx.groupId]) {
-          installmentGroupMap[tx.groupId] = crypto.randomUUID();
+        if (tx.groupId || tx.installment) { // Se tem parcela, precisa de ID de grupo
+           const key = tx.groupId || tx.id; // Usa ID como chave se não tiver groupId
+           if (!installmentGroupMap[key]) {
+             installmentGroupMap[key] = crypto.randomUUID();
+           }
         }
       });
 
-      const payload = confirmedTransactions.map(tx => {
-        const amountStr = tx.value.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
-        const amount = parseFloat(amountStr);
-        const dateParsed = parse(tx.date, 'dd/MM/yyyy', new Date());
-        const dateFormatted = isValid(dateParsed) ? format(dateParsed, 'yyyy-MM-dd') : new Date().toISOString().split('T')[0];
+      // 2. Gera o payload expandido (aqui acontece a mágica silenciosa)
+      let fullPayload = [];
+      
+      for (const tx of confirmedTransactions) {
+        const items = generateInstallmentsPayload(tx);
+        
+        // Atualiza o installment_id com o UUID real gerado acima
+        const finalItems = items.map(item => {
+            // Se o item foi gerado de uma expansão, ele terá installment_id temporário
+            if (item.installment_id) {
+                // Tenta recuperar o UUID real mapeado
+                const originalKey = tx.groupId || tx.id;
+                if (installmentGroupMap[originalKey]) {
+                    item.installment_id = installmentGroupMap[originalKey];
+                }
+            }
+            return item;
+        });
+        
+        fullPayload = [...fullPayload, ...finalItems];
+      }
 
-        return {
-          description: tx.description,
-          amount: isNaN(amount) ? 0 : -Math.abs(amount),
-          type: 'expense',
-          date: dateFormatted,
-          credit_card_id: selectedCardId,
-          installment_id: tx.groupId ? installmentGroupMap[tx.groupId] : null,
-          installment_number: tx.installment_number || null,
-          installment_total: tx.installment_total || null,
-          user_id: user?.id
-        };
-      });
-
-      const { error } = await supabase.from('transactions').insert(payload);
+      // 3. Envia
+      const { error } = await supabase.from('transactions').insert(fullPayload);
       if (error) throw error;
 
-      alert(`Sucesso! ${payload.length} transações importadas.`);
+      alert(`Sucesso! ${fullPayload.length} lançamentos criados (incluindo parcelas futuras/passadas).`);
       navigate('/transactions');
 
     } catch (err) {
@@ -198,12 +210,18 @@ export default function InvoiceImportPage() {
   };
 
   // =========================================================
-  // ⚡ UPLOAD (AGORA CHAMA APENAS O VISUAL)
+  // ⚡ UPLOAD
   // =========================================================
 
   const handleFileSelect = async (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
+    
+    if (!selectedCardId) {
+        alert("Por favor, selecione o cartão de crédito ANTES de carregar a fatura.");
+        e.target.value = null; // Limpa o input
+        return;
+    }
 
     setFile(selectedFile);
     setLoading(true);
@@ -212,8 +230,6 @@ export default function InvoiceImportPage() {
     formData.append('file', selectedFile);
 
     try {
-      // Chama o endpoint visual (Imagens + Texto Bruto)
-      // Não chama IA aqui, mas a interface vai dizer que está "Analisando..."
       const response = await fetch(`${API_URL}/process_visual`, { 
         method: 'POST', 
         body: formData 
@@ -223,8 +239,7 @@ export default function InvoiceImportPage() {
       if (data.error) throw new Error(data.error);
       
       setVisualData(data.visual_data);
-      // UX: Feedback visual de sucesso da "IA"
-      setInteractionMode('draw'); // Já entra no modo de seleção
+      setInteractionMode('draw');
 
     } catch (err) {
       alert("Erro: " + err.message);
@@ -235,7 +250,7 @@ export default function InvoiceImportPage() {
   };
 
   // =========================================================
-  // 🖐️ PROCESSAMENTO MANUAL (CHAMADO DE "IA" NA UI)
+  // 🖐️ PROCESSAMENTO MANUAL
   // =========================================================
 
   const processSelection = async (boxRect, pageNum) => {
@@ -262,7 +277,6 @@ export default function InvoiceImportPage() {
     if (selectedWords.length === 0) { setProcessing(false); return; }
 
     try {
-        // Chama o Regex local do Python (Rápido e preciso)
         const response = await fetch(`${API_URL}/parse_selection`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -272,14 +286,14 @@ export default function InvoiceImportPage() {
 
         if (data.transactions?.length > 0) {
             addTransactions(data.transactions); 
-            setInteractionMode('scroll'); // Volta para navegar para facilitar
+            setInteractionMode('scroll');
             setIsBottomSheetOpen(true);
         }
     } catch (err) { console.error(err); } 
     finally { setProcessing(false); }
   };
 
-  // --- EVENTOS (IGUAL) ---
+  // --- EVENTOS ---
   const handlePointerDown = (e, pageNum) => {
     if (interactionMode === 'scroll') return;
     e.preventDefault(); 
@@ -329,7 +343,7 @@ export default function InvoiceImportPage() {
 
 
   // =========================================================
-  // 🖥️ VIEW: REVIEW & IMPORT (TELA FINAL)
+  // 🖥️ VIEW: REVIEW
   // =========================================================
   if (view === 'review') {
     return (
@@ -339,105 +353,48 @@ export default function InvoiceImportPage() {
             <button onClick={() => setView('audit')} className="flex items-center text-slate-500 hover:text-indigo-600 transition-colors gap-1 font-medium text-sm">
               <ArrowLeft className="w-4 h-4" /> Voltar à Fatura
             </button>
-            <h1 className="text-lg font-bold text-slate-800 dark:text-white">Revisão de Importação</h1>
+            <h1 className="text-lg font-bold text-slate-800 dark:text-white">Revisão</h1>
             <div className="w-16"></div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-3xl mx-auto space-y-6">
-            
-            {/* Seleção de Cartão */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Vincular ao Cartão</label>
-                <div className="relative">
-                    <CreditCard className="absolute left-3 top-3 w-5 h-5 text-indigo-500" />
-                    <select 
-                        value={selectedCardId} 
-                        onChange={(e) => setSelectedCardId(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-white font-medium focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
-                    >
-                        <option value="" disabled>Selecione um cartão...</option>
-                        {creditCards.map(card => (
-                            <option key={card.id} value={card.id}>{card.name} (Final {card.last_four_digits})</option>
-                        ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
-                </div>
-            </div>
-
-            {/* Resumo */}
-            <div className="bg-indigo-600 text-white p-6 rounded-2xl shadow-xl flex justify-between items-center relative overflow-hidden">
-              <div className="relative z-10">
-                <p className="text-indigo-200 text-xs font-bold uppercase tracking-wider">Total a Importar</p>
-                <h2 className="text-3xl font-bold mt-1">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalValue)}
-                </h2>
+            <div className="bg-indigo-600 text-white p-6 rounded-2xl shadow-xl flex justify-between items-center">
+              <div>
+                <p className="text-indigo-200 text-xs font-bold uppercase tracking-wider">Total Selecionado</p>
+                <h2 className="text-3xl font-bold mt-1">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalValue)}</h2>
               </div>
-              <div className="text-right relative z-10">
+              <div className="text-right">
                 <p className="text-2xl font-bold">{confirmedTransactions.length}</p>
-                <p className="text-indigo-200 text-xs">Lançamentos</p>
+                <p className="text-indigo-200 text-xs">Itens</p>
               </div>
-              <div className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl -mr-10 -mt-10"></div>
             </div>
 
-            {/* Lista */}
-            <div className="space-y-3">
-              {confirmedTransactions.map((tx) => (
-                <div 
-                  key={tx.id} 
-                  className={`
-                    bg-white dark:bg-slate-900 border rounded-xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center transition-all hover:shadow-md
-                    ${tx.tag === 'Passado' ? 'border-slate-200 opacity-70 bg-slate-50 dark:bg-slate-900/50' : ''}
-                    ${tx.tag === 'Futuro' ? 'border-indigo-100 bg-indigo-50/30 dark:bg-indigo-900/10' : ''}
-                    ${tx.tag === 'Atual' ? 'border-slate-200 dark:border-slate-800' : ''}
-                  `}
-                >
-                  <div className="flex md:flex-col items-center md:items-start gap-2 min-w-[100px]">
-                    <input 
-                      value={tx.date} 
-                      onChange={(e) => updateTransaction(tx.id, 'date', e.target.value)}
-                      className="bg-transparent border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold px-2 py-1.5 rounded text-center w-24 outline-none focus:border-indigo-500"
-                    />
-                    <div className="flex gap-1">
-                        {tx.installment_str && <span className="text-[10px] text-amber-700 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded font-bold">{tx.installment_str}</span>}
-                        {tx.tag && tx.tag !== 'Atual' && <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1 ${tx.tag === 'Passado' ? 'text-slate-500 bg-slate-200 dark:bg-slate-700 dark:text-slate-400' : 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30'}`}>{tx.tag === 'Passado' ? <History className="w-3 h-3" /> : <FastForward className="w-3 h-3" />}{tx.tag}</span>}
-                    </div>
-                  </div>
-                  <div className="flex-1 w-full relative group">
-                    <div className="absolute top-2.5 left-3 text-slate-300 group-focus-within:text-indigo-500 transition-colors"><Edit3 className="w-3.5 h-3.5" /></div>
-                    <input 
-                      value={tx.description}
-                      onChange={(e) => updateTransaction(tx.id, 'description', e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-transparent border border-transparent hover:border-slate-200 dark:hover:border-slate-700 focus:border-indigo-500 rounded-lg transition-all outline-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                    <div className="relative">
-                      <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">R$</span>
-                      <input 
-                        value={tx.value.toString().replace('R$', '').trim()}
-                        onChange={(e) => updateTransaction(tx.id, 'value', e.target.value)}
-                        className="w-28 pl-8 pr-3 py-2 text-right text-sm font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 bg-transparent rounded-lg focus:border-indigo-500 outline-none"
-                      />
-                    </div>
-                    <button onClick={() => deleteTransaction(tx.id)} className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"><Trash2 className="w-5 h-5" /></button>
-                  </div>
+            {confirmedTransactions.map((tx) => (
+              <div key={tx.id} className="bg-white dark:bg-slate-900 border rounded-xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center">
+                <div className="flex md:flex-col items-center md:items-start gap-2 min-w-[100px]">
+                  <input value={tx.date} onChange={(e) => updateTransaction(tx.id, 'date', e.target.value)} className="bg-transparent border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold px-2 py-1.5 rounded text-center w-24 outline-none focus:border-indigo-500"/>
+                  {tx.installment && <span className="text-[10px] text-amber-700 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded font-bold">{tx.installment}</span>}
                 </div>
-              ))}
-            </div>
+                <div className="flex-1 w-full relative group">
+                  <div className="absolute top-2.5 left-3 text-slate-300"><Edit3 className="w-3.5 h-3.5" /></div>
+                  <input value={tx.description} onChange={(e) => updateTransaction(tx.id, 'description', e.target.value)} className="w-full pl-9 pr-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-transparent border border-transparent hover:border-slate-200 dark:hover:border-slate-700 focus:border-indigo-500 rounded-lg transition-all outline-none"/>
+                </div>
+                <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                  <div className="relative"><span className="absolute left-3 top-2 text-xs font-bold text-slate-400">R$</span><input value={tx.value.toString().replace('R$', '').trim()} onChange={(e) => updateTransaction(tx.id, 'value', e.target.value)} className="w-28 pl-8 pr-3 py-2 text-right text-sm font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 bg-transparent rounded-lg focus:border-indigo-500 outline-none"/></div>
+                  <button onClick={() => deleteTransaction(tx.id)} className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"><Trash2 className="w-5 h-5" /></button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
         <div className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-4 md:p-6 sticky bottom-0 z-20">
           <div className="max-w-3xl mx-auto">
-            <button 
-              onClick={handleSaveToSupabase}
-              disabled={saving || confirmedTransactions.length === 0}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-900/20 flex items-center justify-center gap-2 transition-transform active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
-            >
+            <button onClick={handleSaveToSupabase} disabled={saving || confirmedTransactions.length === 0} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-900/20 flex items-center justify-center gap-2 transition-transform active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed">
               {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-              {saving ? "SALVANDO..." : "CONFIRMAR IMPORTAÇÃO"}
+              {saving ? "PROCESSAR E SALVAR" : "CONFIRMAR IMPORTAÇÃO"}
             </button>
           </div>
         </div>
@@ -446,7 +403,7 @@ export default function InvoiceImportPage() {
   }
 
   // =========================================================
-  // 🖥️ VIEW: AUDIT (VISUAL)
+  // 🖥️ VIEW: UPLOAD
   // =========================================================
 
   if (!visualData) {
@@ -461,7 +418,26 @@ export default function InvoiceImportPage() {
             <p className="text-slate-500 dark:text-slate-400 mt-2 text-lg">IA + Visão Computacional</p>
           </div>
           
-          <div className="flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer" onClick={() => setAutoExpandInstallments(!autoExpandInstallments)}>
+          {/* SELEÇÃO DE CARTÃO (AGORA OBRIGATÓRIA AQUI) */}
+          <div className="w-full text-left bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">1. Selecione o Cartão</label>
+                <div className="relative">
+                    <CreditCard className="absolute left-3 top-3 w-5 h-5 text-indigo-500" />
+                    <select 
+                        value={selectedCardId} 
+                        onChange={(e) => setSelectedCardId(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-white font-medium focus:ring-2 focus:ring-indigo-500 outline-none appearance-none cursor-pointer"
+                    >
+                        <option value="" disabled>Escolha...</option>
+                        {creditCards.map(card => (
+                            <option key={card.id} value={card.id}>{card.name} (Final {card.last_four_digits})</option>
+                        ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:border-indigo-300 transition-colors" onClick={() => setAutoExpandInstallments(!autoExpandInstallments)}>
             <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${autoExpandInstallments ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
                 {autoExpandInstallments && <Check className="w-3 h-3 text-white" />}
             </div>
@@ -469,40 +445,41 @@ export default function InvoiceImportPage() {
           </div>
 
           <label className={`block group relative cursor-pointer ${loading ? 'pointer-events-none opacity-80' : ''}`}>
-            <div className="w-full bg-slate-900 dark:bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-indigo-500/20 transition-all group-hover:scale-[1.02] group-active:scale-95 flex items-center justify-center gap-3">
+            <div className={`w-full text-white font-bold py-4 rounded-2xl shadow-xl transition-all group-hover:scale-[1.02] group-active:scale-95 flex items-center justify-center gap-3 ${selectedCardId ? 'bg-slate-900 dark:bg-indigo-600 shadow-indigo-500/20' : 'bg-slate-400 cursor-not-allowed'}`}>
                {loading ? (
-                 <><Loader2 className="animate-spin w-5 h-5" /> Analisando Documento...</>
+                 <><Loader2 className="animate-spin w-5 h-5" /> Processando PDF...</>
                ) : (
-                 <><Upload className="w-5 h-5" /> Carregar Fatura</>
+                 <><Upload className="w-5 h-5" /> 2. Carregar Fatura</>
                )}
             </div>
-            <input type="file" accept="application/pdf" onChange={handleFileSelect} className="hidden" disabled={loading}/>
+            <input type="file" accept="application/pdf" onChange={handleFileSelect} className="hidden" disabled={loading || !selectedCardId}/>
           </label>
         </div>
       </div>
     );
   }
 
+  // =========================================================
+  // 🖥️ VIEW: CANVAS (AUDIT)
+  // =========================================================
   return (
     <div className="h-full flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden font-sans relative">
       
-      {/* Barra Flutuante */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex gap-2 p-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-lg shadow-lg border border-slate-200 dark:border-slate-700 rounded-full transition-all scale-90 sm:scale-100">
         <button onClick={() => setInteractionMode('scroll')} className={`px-5 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${interactionMode === 'scroll' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
           <MousePointer2 className="w-4 h-4" /> Navegar
         </button>
         <button onClick={() => setInteractionMode('draw')} className={`px-5 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${interactionMode === 'draw' ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-200 dark:ring-indigo-900' : 'text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-          <Layers className="w-4 h-4" /> Selecionar IA
+          <Layers className="w-4 h-4" /> Selecionar
         </button>
       </div>
 
-      {/* Canvas da Fatura */}
       <div ref={containerRef} className={`flex-1 overflow-y-auto bg-slate-200/50 dark:bg-black/20 relative ${interactionMode === 'draw' ? 'touch-none cursor-crosshair' : 'touch-pan-y cursor-grab'}`} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onMouseLeave={handlePointerUp}>
         {processing && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-white/30 dark:bg-black/30 backdrop-blur-[2px]">
              <div className="bg-white dark:bg-slate-800 px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border border-slate-100 dark:border-slate-700 animate-bounce">
-                <Bot className="w-5 h-5 text-indigo-600 animate-pulse" />
-                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">IA Analisando...</span>
+                <Loader2 className="w-5 h-5 text-indigo-600 animate-spin" />
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Extraindo...</span>
              </div>
           </div>
         )}
@@ -539,11 +516,10 @@ export default function InvoiceImportPage() {
         {selectionBox && <div className="fixed border-2 border-indigo-500 bg-indigo-500/20 z-50 pointer-events-none rounded backdrop-blur-[1px]" style={{ left: selectionBox.x, top: selectionBox.y, width: selectionBox.width, height: selectionBox.height }} />}
       </div>
 
-      {/* Bottom Sheet */}
       <div className={`bg-white dark:bg-slate-900 z-40 border-t border-slate-200 dark:border-slate-800 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col ${isBottomSheetOpen ? 'h-[60vh]' : 'h-[90px]'}`}>
         <div onClick={() => setIsBottomSheetOpen(!isBottomSheetOpen)} className="px-6 h-[90px] flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Prévia IA</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Prévia</span>
             <div className="flex items-baseline gap-3">
               <span className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalValue)}
@@ -564,7 +540,7 @@ export default function InvoiceImportPage() {
               <div className="flex flex-col min-w-0 gap-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200">{tx.date || 'S/D'}</span>
-                  {tx.installment_str && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-100">{tx.installment_str}</span>}
+                  {tx.installment && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-100">{tx.installment}</span>}
                 </div>
                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{tx.description}</span>
               </div>
