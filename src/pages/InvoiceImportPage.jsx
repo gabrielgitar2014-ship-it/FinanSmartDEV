@@ -359,8 +359,7 @@ export default function InvoiceImportPage() {
       user_id: user.id,
       credit_card_id: selectedCardId,        // campo que referencia credit_cards.id
       description: tx.description,
-      date: tx.date,                         // você pode converter para ISO se sua tabela exigir
-      installment: tx.installment || null,
+      date: tx.date,                         
       created_at: new Date().toISOString(),
       amount: Number(                        // ajuste o nome do campo (amount/value) conforme sua tabela
         tx.value
@@ -802,3 +801,4 @@ export default function InvoiceImportPage() {
     </div>
   );
 }
+
