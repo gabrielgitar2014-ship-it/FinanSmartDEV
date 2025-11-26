@@ -15,7 +15,8 @@ import AddIncomePage from "./pages/AddIncomePage";
 import CardDetailPage from "./pages/CardDetailPage";
 import SettingsPage from "./pages/SettingsPage"; 
 import CreateAccountPage from "./pages/CreateAccountPage";
-import AiAgentsPage from "./pages/AiAgentsPage"; // ⭐ NOVA IMPORTAÇÃO
+import AiAgentsPage from "./pages/AiAgentsPage"; 
+import InvoiceImportPage from "./pages/InvoiceImportPage"; // ⭐ NOVA IMPORTAÇÃO
 
 import { AuthProvider } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
@@ -61,8 +62,11 @@ export default function App() {
                 <Route path="/cards/:id" element={<CardDetailPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
 
-                {/* ⭐ NOVA ROTA DE AGENTES IA */}
+                {/* Rota Principal de Agentes IA */}
                 <Route path="/agents" element={<AiAgentsPage />} />
+                
+                {/* ⭐ NOVA ROTA DO IMPORTADOR DE FATURAS */}
+                <Route path="/agents/invoice-import" element={<InvoiceImportPage />} />
                 
               </Route>
             </Routes>
