@@ -18,7 +18,7 @@ export default function AiAgentsPage() {
       shadow: 'shadow-blue-500/20',
       status: 'Disponível',
       statusColor: 'bg-green-500',
-      action: () => navigate('/ai-agents/invoice-import') // Rota futura
+      action: () => navigate('/agents/invoice-import') // Rota futura
     },
     {
       id: 'goal-advisor',
@@ -133,4 +133,5 @@ export default function AiAgentsPage() {
 
     </div>
   );
+
 }
