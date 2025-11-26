@@ -15,19 +15,19 @@ import {
   Edit3,
   History,
   FastForward,
-  ClipboardList 
+  ClipboardList // Novo ícone para Categoria
 } from "lucide-react";
-import { parse, format, isValid, parseISO } from "date-fns";
+import { addMonths, parse, format, isValid } from "date-fns";
 
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../context/AuthContext";
 
-// URL do backend (Cloud Run) para serviços de terceiros/visual (upload, parse_selection)
+// URL do backend (Cloud Run) alinhado com app.py
 const API_URL =
   "https://finansmart-backend-119305932517.us-central1.run.app";
 
-// URL CORRIGIDA DA EDGE FUNCTION DO SUPABASE PARA PROCESSAMENTO FINAL
-const EDGE_FUNCTION_URL = "https://tggsnqafmsdldgvpjgdm.supabase.co/functions/v1/hyper-processor";
+// NOVO ENDPOINT SIMULADO para a Edge Function que fará o processamento
+const EDGE_FUNCTION_URL = `${API_URL}/process_invoice_transactions`; // Substitua pelo seu endpoint real
 
 export default function InvoiceImportPage() {
   // ------------------ AUTENTICAÇÃO ------------------
@@ -38,25 +38,24 @@ export default function InvoiceImportPage() {
   const [categories, setCategories] = useState([]); 
   const [selectedCardId, setSelectedCardId] = useState(null);
   
-  // Mês de referência da fatura
+  // NOVO STATE: Mês de referência da fatura para cálculo do ano no backend
   const [invoiceReferenceDate, setInvoiceReferenceDate] = useState(
     format(new Date(), "yyyy-MM")
   ); 
 
   // ------------------ STATES ORIGINAIS ------------------
-  const [view, setView] = useState("audit");
+  const [view, setView] = useState("audit"); 
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [visualData, setVisualData] = useState(null);
 
-  const [interactionMode, setInteractionMode] = useState("scroll");
+  const [interactionMode, setInteractionMode] = useState("scroll"); 
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
 
   const [selectionBox, setSelectionBox] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
-  // confirmedTransactions armazena ITENS ORIGINAIS (não expandidos)
   const [confirmedTransactions, setConfirmedTransactions] = useState([]);
   const [autoExpandInstallments, setAutoExpandInstallments] =
     useState(true); 
@@ -65,13 +64,9 @@ export default function InvoiceImportPage() {
   const [pageScales, setPageScales] = useState({});
   const imageRefs = useRef({});
   const containerRef = useRef(null);
-  
-  // ------------------ CATEGOZIAÇÃO EM MASSA ------------------
-  const [selectedTxIds, setSelectedTxIds] = useState([]); // IDs selecionados para massa
-  const [bulkCategoryId, setBulkCategoryId] = useState(""); // Categoria selecionada no dropdown de massa
 
   // =====================================================
-  // 👁‍🗨 HELPER: PARSE DE DATA
+  // 👁‍🗨 HELPER: PARSE DE DATA 
   // =====================================================
   const parseToISODate = (dateStr) => {
     if (!dateStr) return format(new Date(), "yyyy-MM-dd");
@@ -85,8 +80,9 @@ export default function InvoiceImportPage() {
   };
 
   // =====================================================
-  // 🧠 LÓGICA DE TRANSAÇÃO (SIMPLIFICADA)
+  // 🧠 LÓGICA DE PARCELAMENTO (SIMPLIFICADA)
   // =====================================================
+
   const addTransactions = (newItems) => {
     let finalItems = newItems.map(item => ({
         ...item,
@@ -207,7 +203,7 @@ export default function InvoiceImportPage() {
   };
 
   // =====================================================
-  // ✂️ PROCESSAR SELEÇÃO MANUAL (parse_selection) - CORRIGIDO
+  // ✂️ PROCESSAR SELEÇÃO MANUAL (parse_selection)
   // =====================================================
   const processManualSelection = async (boxRect, pageNum) => {
     if (!visualData || !boxRect) return;
@@ -246,15 +242,12 @@ export default function InvoiceImportPage() {
           wCy <= relativeBox.bottom
         );
       });
-      
-      // Correção do ReferenceError: Garantimos que se não houver palavras, o fluxo saia aqui.
+
       if (selectedWords.length === 0) {
         setProcessing(false);
-        alert("Nenhuma palavra detectada na área selecionada. Tente desenhar uma área maior.");
-        return; 
+        return;
       }
 
-      // Uso seguro de selectedWords
       const response = await fetch(`${API_URL}/parse_selection`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -272,7 +265,8 @@ export default function InvoiceImportPage() {
       if (data.error) throw new Error(data.error);
 
       if (data.transactions?.length > 0) {
-        addTransactions(data.transactions);
+        // Adiciona os itens ORIGINAIS
+        addTransactions(data.transactions); 
         setInteractionMode("scroll");
         setIsBottomSheetOpen(true);
       }
@@ -283,7 +277,6 @@ export default function InvoiceImportPage() {
       setProcessing(false);
     }
   };
-
 
   // =====================================================
   // 🖱️ EVENTOS DE DESENHO / SELEÇÃO
@@ -316,6 +309,7 @@ export default function InvoiceImportPage() {
     const width = clientX - startPos.current.x;
     const height = clientY - startPos.current.y;
 
+    // manter page da seleção
     setSelectionBox((prev) => ({
       ...prev,
       width: Math.abs(width),
@@ -386,43 +380,9 @@ export default function InvoiceImportPage() {
     );
     return acc + (Number.isNaN(v) ? 0 : v);
   }, 0);
-  
-  // =====================================================
-  // 🔄 LÓGICA DE SELEÇÃO E CATEGORIZAÇÃO EM MASSA
-  // =====================================================
-  const toggleTxSelection = (id) => {
-    setSelectedTxIds(prev => 
-      prev.includes(id) ? prev.filter(txId => txId !== id) : [...prev, id]
-    );
-  };
-  
-  const toggleAllSelection = () => {
-    if (selectedTxIds.length === confirmedTransactions.length) {
-      setSelectedTxIds([]);
-    } else {
-      setSelectedTxIds(confirmedTransactions.map(tx => tx.id));
-    }
-  };
-
-  const applyBulkCategory = () => {
-    if (!bulkCategoryId) {
-      alert("Selecione uma categoria para aplicar.");
-      return;
-    }
-
-    setConfirmedTransactions(prev => 
-      prev.map(tx => 
-        selectedTxIds.includes(tx.id) ? { ...tx, category_id: bulkCategoryId } : tx
-      )
-    );
-    
-    // Limpar seleção após aplicação
-    setSelectedTxIds([]);
-    setBulkCategoryId("");
-  };
 
   // =====================================================
-  // 💾 ENVIAR PARA EDGE FUNCTION
+  // 💾 ENVIAR PARA EDGE FUNCTION (saveTransactions refatorada)
   // =====================================================
   const sendToBackendForProcessing = async () => {
     if (!user) {
@@ -448,31 +408,26 @@ export default function InvoiceImportPage() {
       return;
     }
     
-    // Validação da Categoria
-    const missingCategory = confirmedTransactions.some(tx => !tx.category_id);
-    if (missingCategory) {
-        alert("Por favor, selecione uma categoria para todas as transações.");
-        return;
-    }
-    
     // Monta o payload com todas as transações ORIGINAIS, incluindo Categoria
     const transactionsToSend = confirmedTransactions.map((tx) => ({
-        original_id: tx.id,
+        // Dados da transação original
+        original_id: tx.id, // ID interno para referência
         description: tx.description,
-        value: tx.value,
-        date: tx.date, 
-        installment: tx.installment || null,
-        category_id: tx.category_id,
+        value: tx.value, // Envia o valor em string, o backend limpa
+        date: tx.date, // Data em dd/MM (ou dd/MM/yyyy), o backend infere o ano
+        installment: tx.installment || null, // Ex: "3/10"
+        
+        // Dados obrigatórios para o backend
+        category_id: tx.category_id, // Categoria selecionada pelo usuário
     }));
 
     // Payload principal para a Edge Function
     const payload = {
         transactions: transactionsToSend,
-        invoice_reference_date: invoiceReferenceDate,
+        invoice_reference_date: invoiceReferenceDate, // Ex: "2025-10" (Backend calcula ano)
         user_id: user.id,
         credit_card_id: selectedCardId,
         account_id: selectedCard.account_id,
-        auto_expand_installments: autoExpandInstallments, // Envia a preferência do usuário
     };
     
     setProcessing(true);
@@ -494,8 +449,10 @@ export default function InvoiceImportPage() {
       const data = await response.json();
       if (data.error) throw new Error(data.error);
 
+
       alert("Transações importadas e processadas com sucesso!");
 
+      // Limpa e volta para a tela inicial
       setConfirmedTransactions([]);
       setVisualData(null);
       setView("audit");
@@ -511,8 +468,6 @@ export default function InvoiceImportPage() {
   // VIEW: REVIEW (LISTA EDITÁVEL)
   // =====================================================
   if (view === "review") {
-    const isAllSelected = selectedTxIds.length === confirmedTransactions.length && confirmedTransactions.length > 0;
-    
     return (
       <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-950 font-sans">
         {/* Header */}
@@ -525,7 +480,7 @@ export default function InvoiceImportPage() {
               <ArrowLeft className="w-4 h-4" /> Voltar à Fatura
             </button>
             <h1 className="text-lg font-bold text-slate-800 dark:text-white">
-              Revisão e Categorização
+              Revisão de Importação
             </h1>
             <div className="w-16" />
           </div>
@@ -534,12 +489,11 @@ export default function InvoiceImportPage() {
         {/* Conteúdo */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-4xl mx-auto space-y-6">
-            
-            {/* Card de Resumo (Mantido) */}
+            {/* Card de Resumo */}
             <div className="bg-indigo-600 text-white p-6 rounded-2xl shadow-xl flex justify-between items-center relative overflow-hidden">
               <div className="relative z-10">
                 <p className="text-indigo-200 text-xs font-bold uppercase tracking-wider">
-                  Total das Transações
+                  Total a Importar
                 </p>
                 <h2 className="text-3xl font-bold mt-1">
                   {new Intl.NumberFormat("pt-BR", {
@@ -557,68 +511,14 @@ export default function InvoiceImportPage() {
               <div className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl -mr-10 -mt-10" />
             </div>
 
-            {/* Ferramenta de CATEGORIZAÇÃO EM MASSA */}
-            <div className={`p-4 rounded-xl border-2 transition-all ${selectedTxIds.length > 0 ? 'border-indigo-400 bg-indigo-50/50' : 'border-slate-200 bg-white'}`}>
-                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
-                    {selectedTxIds.length} Itens Selecionados 
-                </p>
-                <div className="flex gap-3 items-center">
-                    <select
-                        value={bulkCategoryId}
-                        onChange={(e) => setBulkCategoryId(e.target.value)}
-                        disabled={selectedTxIds.length === 0}
-                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-indigo-500 disabled:opacity-50"
-                    >
-                        <option value="" disabled>Aplicar categoria em massa</option>
-                        {categories.map((cat) => (
-                            <option key={cat.id} value={cat.id}>
-                                {cat.name}
-                            </option>
-                        ))}
-                    </select>
-                    <button
-                        onClick={applyBulkCategory}
-                        disabled={selectedTxIds.length === 0 || !bulkCategoryId}
-                        className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed"
-                    >
-                        Aplicar
-                    </button>
-                </div>
-            </div>
-
             {/* Lista */}
             <div className="space-y-3">
-                {/* Cabeçalho da Lista (para Checkbox Global) */}
-                <div className="flex items-center gap-2 p-3 bg-slate-200/50 dark:bg-slate-800 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300">
-                    <input
-                        type="checkbox"
-                        checked={isAllSelected}
-                        onChange={toggleAllSelection}
-                        className="ml-1 w-4 h-4 text-indigo-600 bg-white border-slate-300 rounded focus:ring-indigo-500"
-                    />
-                    <span className="flex-1">Transação ({confirmedTransactions.length} itens)</span>
-                    <span className="w-32 text-right mr-16">Valor</span>
-                </div>
-
-              {confirmedTransactions.map((tx) => {
-                const isSelected = selectedTxIds.includes(tx.id);
-                return (
+              {confirmedTransactions.map((tx) => (
                 <div
                   key={tx.id}
-                  className={`bg-white dark:bg-slate-900 border rounded-xl p-4 shadow-sm flex flex-col gap-4 items-start transition-all hover:shadow-md
-                    ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200 dark:border-slate-700'}`}
+                  className={`bg-white dark:bg-slate-900 border rounded-xl p-4 shadow-sm flex flex-col gap-4 items-start transition-all hover:shadow-md border-slate-200 dark:border-slate-700`}
                 >
                     <div className="flex w-full items-start gap-4">
-                        {/* Checkbox */}
-                        <div className="flex-shrink-0 pt-2">
-                            <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleTxSelection(tx.id)}
-                                className="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
-                            />
-                        </div>
-
                         {/* Data e Parcela */}
                         <div className="flex flex-col items-center md:items-start gap-2 min-w-[100px]">
                             <input
@@ -680,11 +580,10 @@ export default function InvoiceImportPage() {
                         </button>
                     </div>
 
-                    {/* Linha 2: Categoria Individual */}
+                    {/* Linha 2: Categoria (Obrigatório) */}
                     <div className="w-full flex items-center gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
-                        <div className="w-4 h-4 flex-shrink-0 opacity-0" /> {/* Espaçador */}
                         <ClipboardList className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 min-w-[70px]">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                             Categoria:
                         </label>
                         <select
@@ -712,7 +611,7 @@ export default function InvoiceImportPage() {
         <div className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-4 md:p-6 sticky bottom-0 z-20">
           <div className="max-w-4xl mx-auto">
             <button
-              onClick={sendToBackendForProcessing}
+              onClick={sendToBackendForProcessing} 
               className={`w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-900/20 flex items-center justify-center gap-2 transition-transform active:scale-[0.99]
                 ${processing ? "opacity-70 cursor-not-allowed" : ""}`}
               disabled={processing || confirmedTransactions.length === 0}
@@ -734,7 +633,7 @@ export default function InvoiceImportPage() {
   }
 
   // =====================================================
-  // VIEW: AUDIT INICIAL 
+  // VIEW: AUDIT INICIAL (com novo layout em grid)
   // =====================================================
   if (!visualData) {
     return (
@@ -752,7 +651,7 @@ export default function InvoiceImportPage() {
             </p>
           </div>
 
-          {/* CONTÊINER FLEX PARA CARTÃO E DATA */}
+          {/* NOVO CONTÊINER FLEX PARA CARTÃO E DATA */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
             {/* Dropdown cartão */}
             <div className="space-y-2">
@@ -778,7 +677,7 @@ export default function InvoiceImportPage() {
               </select>
             </div>
 
-            {/* CAMPO: Mês/Ano de Referência da Fatura */}
+            {/* NOVO CAMPO: Mês/Ano de Referência da Fatura */}
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                 Mês/Ano da Fatura:
@@ -792,7 +691,7 @@ export default function InvoiceImportPage() {
             </div>
           </div>
 
-          {/* Toggle parcelas */}
+          {/* Toggle parcelas (Mantido, mas a lógica agora está no Backend) */}
           <div
             className="flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer"
             onClick={() =>
@@ -810,10 +709,10 @@ export default function InvoiceImportPage() {
                 <Check className="w-3 h-3 text-white" />
               )}
             </div>
-            <span>Expandir parcelas no Backend (Recomendado)</span>
+            <span>Opção de Expansão no Backend (Enviada no Payload)</span>
           </div>
 
-          {/* Upload */}
+          {/* Upload (Mantido) */}
           <label
             className={`block group relative cursor-pointer ${
               loading ? "pointer-events-none opacity-80" : ""
@@ -845,7 +744,7 @@ export default function InvoiceImportPage() {
   }
 
   // =====================================================
-  // VIEW: AUDIT COM VISUALDATA
+  // VIEW: AUDIT COM VISUALDATA (PDF + seleção livre)
   // =====================================================
   return (
     <div className="h-full flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden font-sans relative">
