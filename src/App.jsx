@@ -17,6 +17,8 @@ import SettingsPage from "./pages/SettingsPage";
 import CreateAccountPage from "./pages/CreateAccountPage";
 import AiAgentsPage from "./pages/AiAgentsPage"; 
 import InvoiceImportPage from "./pages/InvoiceImportPage"; // ⭐ NOVA IMPORTAÇÃO
+import CategoriesPage from "./pages/CategoriesPage";
+import ProfileSettings from "./pages/settings/ProfileSettings";
 
 import { AuthProvider } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
@@ -55,12 +57,14 @@ export default function App() {
                 <Route path="/accounts/new" element={<CreateAccountPage />} />
 
                 <Route path="/transactions" element={<TransactionsPage />} />
+                <Route path="/transactions/categories" element={<CategoriesPage />} />
 
                 <Route path="/add-expense" element={<AddExpensePage />} />
                 <Route path="/add-income" element={<AddIncomePage />} />
 
                 <Route path="/cards/:id" element={<CardDetailPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/settings/profile" element={<ProfileSettings />} />
 
                 {/* Rota Principal de Agentes IA */}
                 <Route path="/agents" element={<AiAgentsPage />} />
