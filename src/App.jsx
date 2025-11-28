@@ -59,6 +59,9 @@ export default function App() {
 
                 <Route path="/transactions" element={<TransactionsPage />} />
                 <Route path="/transactions/categories" element={<CategoriesPage />} />
+                <Route path="/transactions/new-expense" element={<AddExpensePage />} />
+                 <Route path="/transactions/new-income" element={<AddIncomePage />} />
+                
 
                 <Route path="/add-expense" element={<AddExpensePage />} />
                 <Route path="/add-income" element={<AddIncomePage />} />
