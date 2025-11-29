@@ -46,7 +46,7 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/onboarding" element={<OnboardingPage />} />
               <Route path="/register" element={<RegisterPage />} />
-              <Route path="/invite/:inviteCode" element={<InviteRegisterPage />} /> 
+              <Route path="/invite" element={<InviteRegisterPage />} /> 
                 
 
               {/* Privadas */}
