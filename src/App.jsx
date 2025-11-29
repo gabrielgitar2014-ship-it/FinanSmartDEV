@@ -20,6 +20,8 @@ import InvoiceImportPage from "./pages/InvoiceImportPage"; // ⭐ NOVA IMPORTAÇ
 import CategoriesPage from "./pages/CategoriesPage";
 import ProfileSettings from "./pages/settings/ProfileSettings";
 import InvoiceReview from "./pages/InvoiceReview"
+import RegisterPage from "./pages/RegisterPage";
+import InviteRegisterPage from "./pages/InviteRegisterPage";
 
 import { AuthProvider } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
@@ -43,6 +45,9 @@ export default function App() {
               {/* Públicas */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/invite/:inviteCode" element={<InviteRegisterPage />} /> 
+                
 
               {/* Privadas */}
               <Route
