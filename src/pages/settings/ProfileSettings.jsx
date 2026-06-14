@@ -112,10 +112,12 @@ export default function ProfileSettings() {
 
       const file = event.target.files[0]
       const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}-${Math.random()}.${fileExt}`
-      const filePath = `${fileName}`
+      const fileName = `${Date.now()}.${fileExt}`
+      // A policy de RLS do bucket 'avatars' exige que o arquivo fique
+      // dentro de uma "pasta" com o nome igual ao auth.uid() do usuário.
+      const filePath = `${user.id}/${fileName}`
 
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file)
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true })
       if (uploadError) throw uploadError
 
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath)
