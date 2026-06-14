@@ -19,6 +19,7 @@ import AiAgentsPage from "./pages/AiAgentsPage";
 import InvoiceImportPage from "./pages/InvoiceImportPage"; // ⭐ NOVA IMPORTAÇÃO
 import CategoriesPage from "./pages/CategoriesPage";
 import ProfileSettings from "./pages/settings/ProfileSettings";
+import FamilySettings from "./pages/settings/FamilySettings";
 import InvoiceReview from "./pages/InvoiceReview"
 import RegisterPage from "./pages/RegisterPage";
 import InviteRegisterPage from "./pages/InviteRegisterPage";
@@ -74,6 +75,7 @@ export default function App() {
                 <Route path="/cards/:id" element={<CardDetailPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/profile" element={<ProfileSettings />} />
+                <Route path="/settings/family" element={<FamilySettings />} />
 
                 {/* Rota Principal de Agentes IA */}
                 <Route path="/agents" element={<AiAgentsPage />} />
